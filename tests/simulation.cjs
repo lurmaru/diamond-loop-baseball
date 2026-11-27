@@ -9,7 +9,7 @@ function campaign(seed, years, guided, challenge, audit=false) {
   const sign=()=>{
     while(G.flip(s)){}
     const i=best(s.pack.map(p=>p.stats.reduce((a,b)=>a+b)+8*p.genius));
-    assert.ok(G.enroll(s,s.pack[i].id));
+    assert.ok(G.enroll(s,s.pack[i].id));assert.ok(G.lockDeck(s));
   };
   sign();
   for (let year=1;year<=years;year++) {
@@ -19,9 +19,22 @@ function campaign(seed, years, guided, challenge, audit=false) {
     while(s.year===year || s.phase==='intake') {
       assert.ok(++guard<250);
       if(audit) s=JSON.parse(JSON.stringify(s));
+      if(audit && !['intake','build'].includes(s.phase))assert.deepEqual([...s.pile,...s.discard,...s.cards.map(c=>c.id)].sort((a,b)=>a-b),s.deck.slice().sort((a,b)=>a-b));
       if(s.report){assert.ok(G.acknowledge(s));continue;}
       const random=sample(s,guard);
       switch(s.phase) {
+        case 'build':{
+          if(s.library.length>s.draft.length&&s.draft.length<16){
+            assert.ok(G.D.toggle(s,s.library.find(c=>!s.draft.includes(c.id)).id));
+          }
+          assert.ok(G.lockDeck(s));break;
+        }
+        case 'mentor':
+        case 'evolve':{
+          const eligible=s.library.filter(c=>s.phase==='mentor'?c.k===s.visitor.k&&!c.mentor:!c.evolved&&c.effect!=='chain');
+          assert.ok(G.teach(s,eligible[0].id));break;
+        }
+        case 'camp':assert.ok(G.campTrain(s,guided?best(s.cards.map(c=>G.skillOdds(s,c,true))):random));break;
         case 'practice': {
           const k=guided?best(s.cards.map(c=>G.gain(s,c)+(s.policy===c.k?1:0))):random;
           assert.ok(G.practice(s,k));break;
@@ -34,10 +47,11 @@ function campaign(seed, years, guided, challenge, audit=false) {
           break;
         case 'graduate':assert.ok(G.graduate(s,s.graduates[0]));break;
         case 'intake':sign();break;
-        case 'shop':assert.ok(G.visitAction(s,!s.visit.sold[random]&&s.cash>=G.price(s,random)?random:3));break;
+        case 'shop':if(s.handSize<6&&G.expandHand(s))break;
+          assert.ok(G.visitAction(s,!G.D.card(s,s.offers[random])&&s.cash>=G.price(s,random)?random:3));break;
         case 'event':assert.ok(G.visitAction(s,guided?1:random%2));break;
         case 'friendly':assert.ok(G.visitAction(s,guided?best([0,1,2].map(k=>G.friendlyOdds(s,k))):random));break;
-        case 'prize':assert.ok(G.visitAction(s,guided&&s.policy>=0?s.policy:random));break;
+        case 'prize':assert.ok(G.visitAction(s,s.offers.length?random%s.offers.length:3));break;
         default:throw Error(s.phase);
       }
     }

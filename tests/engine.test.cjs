@@ -6,7 +6,7 @@ function school(seed){
   const s=G.initial(seed);
   while(G.flip(s)){}
   assert.ok(G.enroll(s,s.pack[0].id));
-  return s;
+  assert.ok(G.lockDeck(s));return s;
 }
 test('independent campaigns are reproducible and retain nine positions',()=>{
   const a=G.initial(971),b=G.initial(971);
@@ -22,7 +22,7 @@ test('independent campaigns are reproducible and retain nine positions',()=>{
 });
 test('training honors the cap and a pending reward consumes exactly one turn',()=>{
   const s=school(4);
-  s.cards[0]={k:0,steps:3,tier:0,name:'打撃練習'};
+  s.cards[0]={...s.cards[0],k:0,steps:3,tier:0,name:'打撃練習'};
   s.roster.forEach(p=>p.stats[0]=G.cap(s)-1);
   assert.ok(G.practice(s,0));
   assert.deepEqual(s.roster.map(p=>p.stats[0]),Array(9).fill(G.cap(s)));

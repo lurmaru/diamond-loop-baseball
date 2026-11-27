@@ -28,7 +28,7 @@
   const rarity=['N','R','SR'];
   const tabs=[['home','育成ホーム'],['team','選手名鑑'],['flag','強化施設'],['book','部誌']];
   const facilityNames=['練習設備','スカウト網','育成研究室'];
-  const versionOK=v=>v && [1,2].includes(v.version) && Array.isArray(v.roster) && Array.isArray(v.logs)&&Array.isArray(v.facility) && Number.isInteger(v.rng) && ['practice','match','graduate','recruit','skill','policy','intake','shop','event','friendly','prize'].includes(v.phase);
+  const versionOK=v=>v && [1,2,3].includes(v.version) && Array.isArray(v.roster) && Array.isArray(v.logs)&&Array.isArray(v.facility) && Number.isInteger(v.rng) && ['practice','match','graduate','recruit','skill','policy','intake','shop','event','friendly','prize','build','camp','evolve','mentor'].includes(v.phase);
   let state,warning='',sound=false,context,tab='home',timer,dialogKind='';
   try{const raw=localStorage.getItem(KEY);if(raw){state=JSON.parse(raw);if(!versionOK(state))throw Error();state=G.migrate(state);}sound=localStorage.getItem(PREF)==='on';}
   catch{warning='保存データを読み込めませんでした。';state=null;}
@@ -46,11 +46,12 @@
   const button=(act,n,title,cls='choice',disabled=false)=>`<button class="${cls}" data-act="${act}" data-n="${n}" ${disabled?'disabled':''}>${title}</button>`;
   const description=(name,desc,end='')=>`<span><strong>${name}</strong><small>${desc}</small></span>${end?'<b>'+end+'</b>':''}`;
   const focused=()=>state.roster.find(p=>p.id===state.focus)||state.roster[0];
-  const styleText=['方針に合う練習で覚醒率 +12ポイント','方針に合う練習で重点選手の成長 +3','方針に合う采配で試合評価をさらに +3'];
-  const season=()=>state.phase==='match'?'夏':state.phase==='graduate'?'春':state.day<6?'春':state.day<11?'初夏':state.day<15?'夏':state.day<24?'秋':'冬';
+  const styleText=['方針に合う練習で覚醒率 +12ポイント、特能習得率 +5ポイント','方針に合う練習で重点選手の成長 +3','方針に合う采配で試合評価をさらに +3'];
+  const season=()=>state.day>=33||state.phase==='graduate'?'春':state.day<6?'春':state.day<11?'初夏':state.day<15?'夏':state.day<24?'秋':'冬';
   function hero(){
-    const s=state, date=s.phase==='match'?'7月 大会期間':s.phase==='graduate'?'3月 卒業式':G.date(s.day);
-    const next=s.phase==='match'?`夏の大会 <strong>${G.rounds[s.match.round]}</strong>`:s.day<11?`夏の地区予選まで <strong>あと${11-s.day}マス</strong>`:`年度末まで <strong>あと${35-s.day}マス</strong>`;
+    const s=state,date=G.date(s.day);
+    const deadline=s.day<11?[11,'夏の大会']:s.day<18?[18,'秋予選']:s.qualified&&s.day<33?[33,'春本戦']:[35,'年度末'];
+    const next=s.phase==='match'?G.matchName(s.match):deadline[1]+'まで <strong>あと'+(deadline[0]-s.day)+'マス</strong>';
     return `<section class="hero" aria-label="シーズン情報"><div class="hero-inner"><span class="season">${ico('flag')} ${s.year}年目</span><h1>青葉高校 野球部</h1><p class="hero-date">${ico('calendar')}${date}<i></i>${season()}の${s.phase==='match'?'大会':s.phase==='graduate'?'卒業式':'育成'}</p><p class="goal-line">${ico('trophy')}${next}</p></div><span class="hero-weather">${ico('sun')}晴れ</span></section>`;
   }
   const head=(ic,title,en,chip='')=>`<div class="sectionhead"><div class="heading-icon">${ico(ic)}</div><div><div class="eyebrow">${en}</div><h2>${title}</h2></div>${chip?`<span class="step">${chip}</span>`:''}</div>`;
@@ -64,10 +65,10 @@
     }).join('')}</details>`;
     return `<aside class="side"><section class="sidebox"><h2>${ico('chart')}チーム戦力</h2><div class="rating"><span>総合力</span><b>${G.power(state)}</b></div>${G.labels.map((_,k)=>bar(k,G.strength(state,k))).join('')}<div class="sidefoot"><span>指導方針</span><b>${G.policies[state.policy]||'未選択'}${state.policy>=0&&G.styles[state.style]?'・'+G.styles[state.style]:''}</b></div>${combos}</section><section class="sidebox"><h2>${ico('book')}監督ノート</h2>${logs(state.logs.slice(0,2))}</section></aside>`;
   }
-  const tileIcons={good:'✦',bad:'▼',plain:'●',event:'？',shop:'￥',friendly:'⚾',policy:'◆',skill:'★',summer:'⚑',end:'◆'};
+  const tileIcons={camp:'★',autumn:'⚑',spring:'⚑',rumor:'♪',alumni:'◇',good:'✦',bad:'▼',plain:'●',event:'？',shop:'￥',friendly:'⚾',policy:'◆',skill:'★',summer:'⚑',end:'◆'};
   function roadmap(){
     const s=state,days=s.tiles.slice(s.day,s.day+6);
-    return `<section class="road"><div class="road-title"><b>${ico('calendar')} 育成カレンダー</b><span>部費 <strong>${s.cash} G</strong></span></div><div class="road-track">${days.map((t,i)=>`<div class="tile tile-${t} ${i===0?'here':''}"><small>${i===0?'現在地':G.date(s.day+i)}</small><b>${tileIcons[t]}</b><span>${G.tileNames[t]}</span></div>`).join('')}</div>${s.lastStop?`<p>${s.lastStop}</p>`:''}</section>`;
+    return `<section class="road"><div class="road-title"><b>${ico('calendar')} 育成カレンダー</b><span>部費 <strong>${s.cash} G</strong></span></div><div class="road-track">${days.map((t,i)=>`<div data-day="${s.day+i}" class="tile tile-${t} ${i===0?'here':''}"><small>${i===0?'現在地':G.date(s.day+i)}</small><b>${tileIcons[t]}</b><span>${G.tileNames[t]}</span></div>`).join('')}</div>${s.lastStop?`<p>${s.lastStop}</p>`:''}</section>`;
   }
   const portrait=p=>`<img class="portrait" src="./assets/rookie-${p.face}.webp" alt="">`;
   function intake(){
@@ -77,14 +78,33 @@
     const nextRank=s.pack[n]?.rank;
     const lucky=nextRank==='Z'?'虹色のきらめき……':nextRank==='SS'?'金色のきらめき……':'';
     const cta=done?'重点選手を選ぼう':n?'次のカードをめくる':'1枚目をめくる';
-    return `<section class="intake"><div class="intake-content"><div class="intake-copy"><span class="season">${ico('flag')} ${s.year}年目 ・ 4月 入学式</span><p class="intake-en">SPRING SCOUT</p><h1>新入生スカウト</h1><p>青葉高校に${total}人の新入生が到着。<br>選手カードをめくって、顔ぶれを確かめよう。</p><div class="rank-key" aria-label="選手ランク">${['C','B','A','S','SS','Z'].map(r=>`<b class="rank-${r}">${r}</b>`).join('')}</div></div><div class="draw-stage">${done?front:`<button class="flip-surface" data-act="flip" aria-label="選手カードをめくる">${front}</button>`}<div class="draw-count">${String(n).padStart(2,'0')} <span>/ ${String(total).padStart(2,'0')}</span></div>${done?button('pickFocus',0,cta,'primary'):button('flip',0,(lucky?lucky+'<br>':'')+cta,'primary'+(lucky?' lucky':''))}</div></div>
+    return `<section class="intake"><div class="intake-content"><div class="intake-copy"><span class="season">${ico('flag')} ${s.year}年目 ・ 4月 入学式</span><p class="intake-en">SPRING SCOUT</p><h1>新入生スカウト</h1><p>青葉高校に${total}人の新入生が到着。${s.rumor!=null?G.pos[s.rumor]+'の逸材に期待。':''}<br>選手カードをめくって、顔ぶれを確かめよう。</p><div class="rank-key" aria-label="選手ランク">${['C','B','A','S','SS','Z'].map(r=>`<b class="rank-${r}">${r}</b>`).join('')}</div></div><div class="draw-stage">${done?front:`<button class="flip-surface" data-act="flip" aria-label="選手カードをめくる">${front}</button>`}<div class="draw-count">${String(n).padStart(2,'0')} <span>/ ${String(total).padStart(2,'0')}</span></div>${done?button('pickFocus',0,cta,'primary'):button('flip',0,(lucky?lucky+'<br>':'')+cta,'primary'+(lucky?' lucky':''))}</div></div>
     <div class="intake-list"><div class="itemrow"><h2>${done?'タップして重点育成に指定':'入部名簿'}</h2><span>${n} / ${total} 人</span></div>${done&&s.heir?`<p>${s.heir.name}から「${G.traits[s.heir.k]}」を継承します。</p>`:''}<div class="rookies">${s.pack.map((v,i)=>i<n?button('enroll',v.id,`${portrait(v)}<span><b>${v.rank} ・ ${G.pos[v.slot]}</b><strong>${v.name}</strong></span>`,'rookie rank-'+v.rank,!done):`<div class="rookie sealed">${String(i+1).padStart(2,'0')}<span>未開封</span></div>`).join('')}</div></div></section>`;
   }
+  const D=G.D;
+  function cardNote(c){return D.detail(c)||G.labels[c.k]+'の基礎練習';}
+  function notebook(){
+    const s=state;
+    return `<details class="notebook"><summary>${ico('book')} 練習帳・デッキ内訳 <span>${s.library.length}枚</span></summary><div class="book-list">${s.library.map(c=>`<div><b>${s.deck.includes(c.id)?'採用':'控え'} ・ ${c.name}</b><small>${c.steps}マス ／ ${cardNote(c)}</small></div>`).join('')}</div></details>`;
+  }
+  function buildBoard(){
+    const s=state,minimum=D.minimum(s),short=Math.max(0,minimum-s.draft.length);
+    const title=s.buildWindow==='spring'?'新入生と春の編成':'夏を終えて再編成';
+    return head('book',title,'TEAM PLAYBOOK')+`<p class="hint">${s.buildWindow==='spring'?'夏の大会まで':'次の入学式まで'}使う札を選択。チェックをタップして入れ替えられます。</p>
+    <div class="deck-lock"><div><strong>${s.draft.length}</strong> 枚採用 <small>最低 ${minimum}枚</small></div>${button('lock',0,short?'あと'+short+'枚選択':'このデッキで始める','primary',short>0)}</div>
+    ${G.labels.map((l,k)=>`<section class="book-group"><h3>${ico(acts[k])} ${l}</h3><div class="book-grid">${s.library.filter(c=>c.k===k).map(c=>{
+      const on=s.draft.includes(c.id);
+      return `<button class="book-entry ${on?'selected':''}" data-act="toggle" data-n="${c.id}" aria-pressed="${on}"><span class="check">${on?'✓':'＋'}</span><span><strong>${c.name}</strong><small>${c.steps}マス ・ 基礎 +${1+c.tier}</small>${D.detail(c)?`<small>${D.detail(c)}</small>`:''}</span></button>`;
+    }).join('')}</div></section>`).join('')}`;
+  }
   function practiceBoard(){
-    return roadmap()+head('cards','練習を選択','TRAINING DECK',`手札 ${state.cards.length} 枚`)+`<p class="hint">練習と行き先を選択。大会や指導日には必ず止まります。</p><div class="cards">${state.cards.map((c,i)=>{
-      const k=c.k;
-      return `<button class="card tone${k} ${c.tier===2?'shine':''}" data-act="practice" data-n="${i}" aria-label="${c.name}、${G.labels[k]}プラス${G.gain(state,c)}、${G.tileNames[state.tiles[G.landing(state,c)]]}へ"><span class="card-art"><span class="rarity">${rarity[c.tier]}</span><span class="stars" aria-hidden="true">${'★'.repeat(c.tier+1)}</span><img src="./assets/${filenames[k]}.png" alt=""></span><span class="card-body"><strong>${c.name}</strong><small>${G.landing(state,c)-state.day}マス進む ・ ${G.tileNames[state.tiles[G.landing(state,c)]]}</small><span class="effect"><span>${ico(acts[k])} ${G.labels[k]}</span><b>+${G.gain(state,c)}</b></span></span></button>`;
-    }).join('')}</div><div class="focusline">${ico('target')}重点育成 <strong>${focused().name}</strong>${button('tab',1,'変更','linkbtn')}</div>`;
+    const s=state,camp=s.phase==='camp';
+    return roadmap()+head(camp?'flag':'cards',camp?'合宿の特別練習':'練習を選択',camp?'TRAINING CAMP':'TRAINING DECK',`手札 ${s.cards.length}枚`)+
+      `<div class="deck-info"><span>${camp?'手札1枚で特能に挑戦。日程は進みません。':'使った1枚を補充します。'}</span><small>山札 ${s.pile.length} ／ 捨て札 ${s.discard.length}</small></div><div class="hand-grid">${s.cards.map((c,i)=>{
+      const k=c.k,to=G.landing(s,c),tile=s.tiles[to],p=G.trainingTarget(s,c);
+      const result=camp?`${p.name}・${G.skillName(c)} ${Math.round(100*G.skillOdds(s,c,true))}%`:`${to-s.day}マス　${tileIcons[tile]} ${G.tileNames[tile]}`;
+      return `<button class="hand-card tone${k}" data-to="${camp?s.day:to}" data-act="${camp?'camp':'practice'}" data-n="${i}"><span class="hand-art"><img src="./assets/${filenames[k]}.png" alt=""></span><span class="hand-data"><strong>${c.name}</strong><b>${ico(acts[k])} ${G.labels[k]} +${camp?2:G.gain(s,c)}</b><span>${result}</span>${(camp?c.mentor:D.detail(c))?`<small>${camp?c.mentor+'直伝':D.detail(c)}</small>`:''}</span></button>`;
+    }).join('')}</div><div class="focusline">${ico('target')}重点育成 <strong>${focused().name}</strong>${button('tab',1,'変更','linkbtn')}</div>${notebook()}`;
   }
   function choices(title,en,hint,arr,act){
     return head('cards',title,en)+`<p class="hint">${hint}</p><div class="options in">${arr.map((v,i)=>button(act,i,v)).join('')}</div>`;
@@ -93,24 +113,41 @@
     const m=state.match,done=m.finished;
     const frame=m.step<3?['3回','6回','9回'][m.step]:`延長${m.step+7}回`;
     const prev=m.plays.at(-1);
-    const champion=done&&m.round===3&&m.us>m.them;
+    const champion=done&&m.competition!=='autumn'&&m.round===G.lastRound(m)&&m.us>m.them;
     const tactics=['強振を指示','投手で勝負','守備を固める'];
-    return head('trophy',G.rounds[m.round],'SUMMER TOURNAMENT',state.challenge?'名門戦 Lv.'+state.challenge:'夏季大会')+
+    return head('trophy',G.matchName(m),'TOURNAMENT',state.challenge?'名門戦 Lv.'+state.challenge:'公式戦')+
       `<div class="score"><span>青葉高校<small>自校</small></span><b>${m.us} – ${m.them}</b><span>${m.opp}<small>相手戦力 ${m.level}</small></span></div>`+
       (prev?`<p class="playlog">${prev.success?'采配成功':'相手が優勢'} ・ この攻防で ${prev.runs}得点 / ${prev.against}失点</p>`:'')+
-      (done?`<div class="scene ${champion?'champion':''}">${champion?ico('trophy'):''}<h3>${m.us>m.them?(m.round===3?'全国優勝！':'青葉高校の勝利！'):'夏の大会 終了'}</h3><p>${state.logs.find(v=>v.type==='win'||v.type==='game')?.detail||''}</p></div>`+button('exitMatch',0,m.us>m.them&&m.round<3?'次の試合へ':'秋の練習へ','primary'):
+      (done?`<div class="scene ${champion?'champion':''}">${champion?ico('trophy'):''}<h3>${m.us>m.them?(champion?'全国優勝！':m.competition==='autumn'?'春本戦 出場決定！':'青葉高校の勝利！'):(m.competition==='autumn'?'秋予選 敗退':'大会終了')}</h3><p>${state.logs.find(v=>v.type==='win'||v.type==='game')?.detail||''}</p></div>`+button('exitMatch',0,m.us>m.them&&m.round<G.lastRound(m)?'次の試合へ':m.competition==='summer'?'夏のデッキ編成へ':'カレンダーへ','primary'):
       `<div class="scene"><h3>${frame}・${G.situations[m.scene][0]}</h3><p>${G.situations[m.scene][1]}</p></div><div class="options">${tactics.map((v,k)=>button('play',k,description(ico(acts[k])+' '+v,`${['長打狙い・失点リスク大','投打のバランス重視','失点を抑える・得点少'][k]}${state.policy===k?' ／ 方針一致':''}`,`成功 ${Math.round(100*G.odds(state,k))}%`))).join('')}</div>`);
   }
   function stopBoard(){
     const s=state,v=s.visit;
-    if(s.phase==='shop')return roadmap()+head('flag','グラウンド購買部','CLUB SHOP')+`<p class="hint">各教材はこの訪問で1冊ずつ購入できます。選んだ練習は年度末まで成長量 +1。</p><div class="options">${G.labels.map((l,k)=>button('visit',k,description(l+'の練習教材',`今季の練習補正 +${s.drills[k]} → +${s.drills[k]+1}`,s.visit.sold[k]?'購入済み':G.price(s,k)+' G'), 'choice',s.visit.sold[k]||s.cash<G.price(s,k))).join('')}${button('visit',3,'買い物を終える','secondary')}</div>`;
-    if(s.phase==='event')return roadmap()+choices('OBが訪問','CLUB EVENT','今日はOBと後援会が来校。チームに必要な方を選ぼう。',[description('後援会を手伝う','部費を蓄えて購買部で使う','+10 G'),description(G.labels[v.k]+'講習を受ける','この系統の全練習カードを年度末まで強化','成長 +1')],'visit');
-    if(s.phase==='prize')return roadmap()+choices('練習試合に勝利！','MATCH REWARD','部費 +8G。勝利を生かし、今季強化する練習を1つ選ぼう。',G.labels.map((l,k)=>description(l+'メニュー強化',`今季補正 +${s.drills[k]} → +${s.drills[k]+1}`)),'visit');
-    return roadmap()+choices('練習試合','EXHIBITION GAME',v.opp+'と対戦。勝てば部費と練習強化を獲得。',G.labels.map((l,k)=>description(l+'で勝負',v.k===k?'相手の弱点を突ける':'チームの実力で挑む',Math.round(G.friendlyOdds(s,k)*100)+'%')),'visit');
+    if(s.phase==='shop'||s.phase==='prize'){
+      const shop=s.phase==='shop',cost=D.slotPrice(s);
+      return roadmap()+head(shop?'flag':'trophy',shop?'グラウンド購買部':'勝利の練習ノート',shop?'CLUB SHOP':'MATCH REWARD')+
+        `<p class="hint">${shop?'手札枠は購入直後から有効。':'部費 +8G。未習得の練習を1つ受け取れます。'} 新しい札は次の編成から採用できます。</p><div class="options">
+        ${shop?button('expand',0,description('手札枠を永久拡張',s.handSize>=s.deck.length-1?'次の編成でデッキを増やすと拡張可能':`手札 ${s.handSize}枚 → ${s.handSize+1}枚`,cost+' G'),'choice',s.cash<cost||s.handSize>=s.deck.length-1):''}
+        ${(s.offers||[]).map((id,i)=>{const c=D.make(id),owned=!!D.card(s,id);
+          return button('visit',i,description(c.name,c.steps+'マス ／ '+cardNote(c),owned?'登録済':shop?G.price(s,i)+' G':'獲得'),'choice',owned||(shop&&s.cash<G.price(s,i)));}).join('')}
+        ${button('visit',3,shop?'買い物を終える':'部費を受け取って進む','secondary')}</div>`;
+    }
+    if(s.phase==='event'){
+      const c=D.card(s,s.eventCard)||s.cards[0];
+      return roadmap()+choices('地域の練習会','CLUB EVENT','後援会の手伝いか、使った練習に対応する特能講習を選びます。',[description('後援会を手伝う','部費を蓄える','+10 G'),description(G.skillName(c)+'の講習',G.trainingTarget(s,c).name+' ／ '+c.name,Math.round(100*G.skillOdds(s,c,false))+'%')],'visit');
+    }
+    return roadmap()+choices('練習試合','EXHIBITION GAME',v.opp+'と対戦。勝てば部費と新しい練習札を獲得。',G.labels.map((l,k)=>description(l+'で勝負',v.k===k?'相手の弱点を突ける':'チームの実力で挑む',Math.round(G.friendlyOdds(s,k)*100)+'%')),'visit');
   }
   function board(){
     const s=state;
-    if(s.phase==='practice')return practiceBoard();
+    if(s.phase==='practice'||s.phase==='camp')return practiceBoard();
+    if(s.phase==='build')return buildBoard();
+    if(s.phase==='mentor'||s.phase==='evolve'){
+      const mentor=s.phase==='mentor';
+      const list=s.library.filter(c=>mentor?c.k===s.visitor.k&&!c.mentor:!c.evolved&&c.effect!=='chain');
+      return head('book',mentor?s.visitor.name+'が来訪！':'合宿でひらめき！',mentor?'ALUMNI COACH':'CARD EVOLUTION')+
+        `<p class="hint">${mentor?`${s.visitor.year}年目の卒業生。得意な${G.labels[s.visitor.k]}を伝授します。選んだ札は通常成長 +1、特能抽選はイベント20%・合宿65%が基本になります。`:'1枚を永久進化。指定の系統に続けて使うと成長量 +2。'}</p><div class="options">${list.map(c=>button('teach',c.id,description(c.name,G.labels[c.k]+' ／ '+c.steps+'マス',mentor?'直伝':G.labels[(c.k+2)%3]+'から連携'))).join('')}</div>`;
+    }
     if(['shop','event','friendly','prize'].includes(s.phase))return stopBoard();
     if(s.phase==='match')return matchBoard();
     if(s.phase==='graduate'&&!s.graduates.length)return head('flag','春の進級式','NEXT SEASON')+'<p class="hint">在校生はひとつ上の学年へ。新入生を迎えよう。</p>'+button('graduate',0,'新入生のカードを受け取る','primary');
@@ -127,14 +164,14 @@
   }
   function team(){
     const s=state;
-    return `<section class="page-panel">${head('team','選手名鑑','TEAM ROSTER',s.roster.length+'人')}<p class="hint">重点育成の選手には、練習のたびに追加で能力 +2。</p><div class="roster">${s.roster.map(p=>`<article class="person ${p.id===s.focus?'active':''}"><div class="roster-portrait rank-${p.rank}">${portrait(p)}<b>${p.rank}</b></div><div class="person-head"><span class="chip">${p.grade}年・${G.pos[p.slot]}</span>${p.genius?'<b class="chip hot">天才</b>':''}</div><h3>${p.name}</h3>${p.stats.map((v,k)=>bar(k,v)).join('')}<div class="talents">${p.traits.map((v,k)=>v?G.traits[k]+' Lv.'+v:'').filter(Boolean).join(' ／ ')||'特殊能力 未習得'}</div>${button('focus',p.id,p.id===s.focus?'重点育成中':'重点育成に指定','pill',p.id===s.focus)}</article>`).join('')}</div></section>`;
+    return `<section class="page-panel">${head('team','選手名鑑','TEAM ROSTER',s.roster.length+'人')}<p class="hint">重点育成の選手には、練習のたびに追加で能力 +2。</p><div class="roster">${s.roster.map(p=>`<article class="person ${p.id===s.focus?'active':''}"><div class="roster-portrait rank-${p.rank}">${portrait(p)}<b>${p.rank}</b></div><div class="person-head"><span class="chip">${p.grade}年・${G.pos[p.slot]}</span>${p.genius?'<b class="chip hot">天才</b>':''}</div><h3>${p.name}</h3>${p.stats.map((v,k)=>bar(k,v)).join('')}<div class="talents">${[...p.traits.map((v,k)=>v?G.traits[k]+' Lv.'+v:''),p.lead?'好リード Lv.'+p.lead:''].filter(Boolean).join(' ／ ')||'特殊能力 未習得'}</div>${button('focus',p.id,p.id===s.focus?'重点育成中':'重点育成に指定','pill',p.id===s.focus)}</article>`).join('')}</div></section>`;
   }
   function facilities(){
     const s=state,max=Math.max(s.record,s.year>=3?1:0);
     return `<div class="page-grid"><section class="page-panel">${head('flag','強化施設','CLUB FACILITIES',s.points+' 伝統Pt')}<p class="hint">試合と卒業で得た伝統Ptを使い、学校を恒久強化。</p>${facilityNames.map((l,k)=>`<article class="upgrade"><div class="itemrow"><h3>${l}</h3><b class="accent">Lv.${s.facility[k]}</b></div><p class="quiet">${['奇数レベルで重点選手の成長 +1。偶数レベルでその効果が全員に広がる。','1レベルごとに新入生の初期能力 +2。','1レベルごとに能力上限 +4。現在の上限 '+G.cap(s)+'。'][k]}</p>${button('upgrade',k,G.cost(s,k)+' Pt で強化','secondary',s.points<G.cost(s,k))}</article>`).join('')}</section><section class="page-panel">${head('trophy','名門への挑戦','CHALLENGE LEAGUE')}<p class="quiet">全国優勝または3年目で解放。名門戦ではレベルごとに相手戦力 +8、勝利時の伝統Pt +1。優勝で次のレベルに挑戦できる。</p><div class="itemrow space"><b>今季の難易度</b><span class="chip">${s.challenge?'名門戦 Lv.'+s.challenge:'通常大会'}</span></div>${max?`<label>大会選択 <select id="difficulty" ${s.day>=11||s.phase!=='practice'?'disabled':''}>${Array.from({length:max+1},(_,i)=>`<option value="${i}" ${i===s.challenge?'selected':''}>${i?'名門戦 Lv.'+i:'通常大会'}</option>`).join('')}</select></label><p class="quiet space">大会前の練習期間に変更できます。</p>`:'<span class="chip">未解放</span>'}<h3 class="space">歴代の指導経験</h3>${G.policies.map((l,k)=>`<div class="sidefoot">${l}<b>${s.mastery[k]} 回採用</b></div>`).join('')}</section></div>`;
   }
   function journalPage(){
-    return `<section class="page-panel logpage">${head('book','野球部の記録','CLUB JOURNAL',state.year+'年目')}<div class="itemrow space"><span>公式戦 <b>${state.wins}勝 ${state.games-state.wins}敗</b></span><span class="accent">全国優勝 ${state.titles}回</span></div><p class="quiet">直近36件の監督ノート</p>${logs(state.logs)}</section>`;
+    return `<section class="page-panel logpage">${head('book','野球部の記録','CLUB JOURNAL',state.year+'年目')}<div class="itemrow space"><span>公式戦 <b>${state.wins}勝 ${state.games-state.wins}敗</b></span><span class="accent">夏優勝 ${state.titles}回 ／ 春優勝 ${state.springTitles||0}回</span></div><p class="quiet">直近36件の監督ノート</p>${logs(state.logs)}</section>`;
   }
   function render(){
     $('#nav').innerHTML=tabs.map(([key,name],i)=>`<button class="nav-btn" data-act="tab" data-n="${i}" aria-current="${tab===key?'page':'false'}">${ico(key)}<span>${name}</span></button>`).join('');
@@ -153,7 +190,7 @@
     const other=KEY===PRIMARY?SECONDARY:PRIMARY;
     let hasOther=false;
     try{hasOther=!!localStorage.getItem(other);}catch{}
-    openDialog('settings',`<h2 id="modal-title">設定と遊び方</h2><p>練習カードの歩数でカレンダーを進み、夏の4試合を勝ち抜こう。練習で1マスにつき部費1G。購買部や練習試合の報酬で今季の練習を強化できます。各選手の在籍期間は3年間。選手名鑑で重点選手をいつでも変更できます。</p><p>金色の光が走るSRカードは大きく成長するチャンス。覚醒や特殊能力は試合で力を発揮し、世代交代で新入生に引き継げます。</p><div class="settings-row">効果音${button('sound',0,sound?'オン':'オフ','pill')}</div><p class="quiet">進行はこのブラウザに自動保存されます。サイトデータを消去すると記録も消えます。</p>${button('switchSchool',0,hasOther?'もう一方のチームを開く':'別のチームで入学式から始める','secondary')}<small class="slot-note">現在は記録${KEY===PRIMARY?'1':'2'}。切り替えてもこのチームは保存されます。</small>${button('close',0,'閉じる','primary')}`);
+    openDialog('settings',`<h2 id="modal-title">設定と遊び方</h2><p>練習カードの歩数でカレンダーを進み、夏の4試合を勝ち抜こう。練習で1マスにつき部費1G。購買部で手札枠や練習札を獲得。入学直後と夏の敗退・優勝後にデッキを編成します。秋予選に勝てば春の本戦へ。各選手の在籍期間は3年間。選手名鑑で重点選手をいつでも変更できます。</p><p>合宿は特能習得のチャンス。卒業生の直伝札は普段の成長と特能の習得率が上がります。覚醒や特殊能力は試合で力を発揮し、世代交代で新入生に引き継げます。</p><div class="settings-row">効果音${button('sound',0,sound?'オン':'オフ','pill')}</div><p class="quiet">進行はこのブラウザに自動保存されます。サイトデータを消去すると記録も消えます。</p>${button('switchSchool',0,hasOther?'もう一方のチームを開く':'別のチームで入学式から始める','secondary')}<small class="slot-note">現在は記録${KEY===PRIMARY?'1':'2'}。切り替えてもこのチームは保存されます。</small>${button('close',0,'閉じる','primary')}`);
   }
   function navigate(i){tab=tabs[i][0];render();window.scrollTo({top:0,behavior:'instant'});}
   document.addEventListener('click',event=>{
@@ -178,10 +215,15 @@
     if(act==='sound'){sound=!sound;try{localStorage.setItem(PREF,sound?'on':'off');}catch{}chime();settings();return;}
     let changed=false,msg='';
     switch(act){
+      case 'lock':changed=G.lockDeck(s);break;
+      case 'toggle':changed=D.toggle(s,n);break;
+      case 'expand':changed=G.expandHand(s);break;
+      case 'camp':changed=G.campTrain(s,n);break;
+      case 'teach':changed=G.teach(s,n);msg=s.logs[0].title;break;
       case 'flip':changed=G.flip(s);break;
       case 'enroll':changed=G.enroll(s,n);if(changed)window.scrollTo(0,0);break;
       case 'visit':changed=G.visitAction(s,n);msg=s.logs[0].title;break;
-      case 'practice':changed=G.practice(s,n);if(changed&&s.report.type==='practice'){msg=s.lastStop;G.acknowledge(s);}break;
+      case 'practice':changed=G.practice(s,n);if(changed&&s.report.type==='practice'){msg=s.report.title+' ／ '+s.lastStop;G.acknowledge(s);}break;
       case 'choose':changed=G.choose(s,n);msg=s.logs[0].title;break;
       case 'play':changed=G.play(s,n);break;
       case 'exitMatch':changed=G.exitMatch(s);break;
@@ -192,8 +234,17 @@
       case 'focus':changed=G.setFocus(s,n);msg=focused().name+'を重点育成に指定';break;
       case 'ack':changed=G.acknowledge(s);$('#modal').close();break;
     }
-    if(changed){save();chime(!!s.report||s.match?.finished||(act==='flip'&&s.pack[s.drawn-1].genius));render();if(msg)tell(msg);}
+    if(changed){
+      const keyboardFocus=document.activeElement===b&&b.matches(':focus-visible');
+      save();chime(!!s.report||s.match?.finished||(act==='flip'&&s.pack[s.drawn-1].genius));render();if(keyboardFocus&&!$('#modal').open){const next=document.querySelector(`button[data-act="${act}"][data-n="${n}"]:not(:disabled)`);(next||document.querySelector('.board button:not(:disabled)'))?.focus({preventScroll:true});}if(msg)tell(msg);
+    }
   });
+  function previewDestination(e){
+    const target=e.target.closest('.hand-card');
+    document.querySelectorAll('.tile').forEach(tile=>tile.classList.toggle('destination',!!target&&target.dataset.to===tile.dataset.day));
+  }
+  document.addEventListener('pointerover',previewDestination);
+  document.addEventListener('focusin',previewDestination);
   document.addEventListener('change',e=>{if(e.target.id==='difficulty'&&G.setChallenge(state,Number(e.target.value))){save();render();tell('今季の大会を変更しました');}});
   $('#settings').innerHTML=ico('gear');$('#settings').onclick=settings;
   $('#brand').onclick=()=>navigate(0);

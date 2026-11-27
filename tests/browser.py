@@ -109,6 +109,11 @@ def exercise(b, url, shots):
         assert b.js(state_expr)['drawn']==n
     b.click('[data-act=enroll]')
     assert len(b.js(state_expr)['roster'])==9
+    b.click('[data-act=toggle][data-n="13"]')
+    b.click('[data-act=toggle][data-n="0"]')
+    b.shot(shots,'spring-build')
+    b.click('[data-act=lock]')
+    assert len(b.js(state_expr)['cards'])==4
     b.shot(shots,'calendar')
     b.click('#settings')
     b.click('[data-act=sound]')
@@ -117,7 +122,7 @@ def exercise(b, url, shots):
     b.click('[data-act=focus]:not(:disabled)')
     b.click('[data-act=tab][data-n="0"]')
     cards=b.js(state_expr)['cards']
-    first_step=next(i for i,c in enumerate(cards) if c['steps']==1)
+    first_step=min(range(len(cards)),key=lambda i:cards[i]['steps'])
     b.click(f'[data-act=practice][data-n="{first_step}"]')
     state_expr = f'JSON.parse(localStorage.getItem("{KEY}"))'
     before=b.js(state_expr)
@@ -134,8 +139,15 @@ def exercise(b, url, shots):
         elif s['year']>=2 and phase=='practice':
             break
         elif phase=='practice':
-            i=next(i for i,c in enumerate(s['cards']) if c['steps']==1)
+            i=min(range(len(s['cards'])),key=lambda i:s['cards'][i]['steps'])
             b.click(f'[data-act=practice][data-n="{i}"]')
+        elif phase=='build':
+            b.click('[data-act=lock]')
+        elif phase=='camp':
+            b.shot(shots,'camp')
+            b.click('[data-act=camp]')
+        elif phase in ['evolve','mentor']:
+            b.click('[data-act=teach]')
         elif phase in ['policy','skill']:
             b.click('[data-act=choose]')
         elif phase=='match':
@@ -149,13 +161,30 @@ def exercise(b, url, shots):
         assert b.js('document.documentElement.scrollWidth<=innerWidth')
     else:
         raise AssertionError('Season did not complete')
-    assert {'practice','match','policy','skill','graduate','intake','shop','event','friendly'}<=phases
-    assert len(s['roster'])==12
+    assert {'build','practice','match','policy','camp','graduate','intake','event'}<=phases
+    assert len(s['roster']) in [12,13]
     b.click('[data-act=tab][data-n="2"]')
     b.click('[data-act=upgrade]:not(:disabled)')
     assert sum(b.js(state_expr)['facility'])==1
     b.click('[data-act=tab][data-n="3"]')
     assert b.js('document.querySelectorAll(".journal li").length')>=10
+    # Exercise advanced screens with the same engine as a live campaign.
+    def fixture(setup):
+        b.js(f"(()=>{{const G=DiamondGame,s=G.initial(904);while(G.flip(s)){{}}G.enroll(s,s.pack[0].id);G.lockDeck(s);{setup};localStorage.setItem('{KEY}',JSON.stringify(s));}})()")
+        b.send('Page.reload')
+        b.wait('document.querySelector(".board")')
+    fixture("s.phase='shop';s.cash=90;s.visit={};s.offers=[15,16,17]")
+    b.click('[data-act=expand]')
+    b.click('[data-act=visit][data-n="0"]')
+    b.click('[data-act=visit][data-n="3"]')
+    assert len(b.js(state_expr)['cards'])==5
+    assert b.js('document.querySelectorAll(".hand-card").length')==5
+    fixture("const p=s.roster[0];p.grade=3;p.traits=[0,4,0];s.graduates=[p.id];s.phase='graduate';G.graduate(s,p.id);while(G.flip(s)){}G.enroll(s,s.pack[0].id);G.lockDeck(s);s.day=21;G.practice(s,0);G.acknowledge(s)")
+    b.click('[data-act=teach][data-n="13"]')
+    assert next(c for c in b.js(state_expr)['library'] if c['id']==13)['mentor']
+    fixture("s.day=18;s.phase='match';s.match={round:0,competition:'autumn',level:52,opp:'試験校',us:3,them:1,step:3,scene:0,plays:[],finished:true}")
+    b.click('[data-act=exitMatch]')
+    assert b.js(state_expr)['tiles'][33]=='spring'
     # A returning player's real v1 fixture resumes where it left off and can try the
     # new opening without losing that school.
     legacy=json.loads((ROOT/'tests'/'legacy-save.json').read_text(encoding='utf8'))
@@ -175,7 +204,7 @@ def exercise(b, url, shots):
     b.click('[data-act=switchSchool]')
     assert b.js(state_expr)==migrated
     assert not b.errors, b.errors
-    print('PASS nine-card intake, mobile & desktop, calendar stops, summer tournament, promotion, shop, facilities, legacy migration and two save slots',flush=True)
+    print('PASS mobile/desktop intake, deck editing, saved hand, camps, autumn, shop expansion, returning alumnus, promotion, migration and two save slots',flush=True)
 
 
 def main():

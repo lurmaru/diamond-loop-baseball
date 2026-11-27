@@ -6,14 +6,14 @@ function school(seed){
   const s=G.initial(seed);
   while(G.flip(s)){}
   G.enroll(s,s.pack[0].id);
-  return s;
+  assert.ok(G.lockDeck(s));return s;
 }
 
 test('the actual first release save migrates once, preserving the roster, hand and progress',()=>{
   const old=require('./legacy-save.json');
   const s=G.migrate(structuredClone(old));
   assert.equal(s.day,3);assert.equal(s.year,old.year);assert.equal(s.phase,old.phase);
-  assert.deepEqual(s.cards.map(c=>c.name),old.cards.map(c=>c.name));
+  assert.deepEqual(s.cards.slice(0,old.cards.length).map(c=>c.name),old.cards.map(c=>c.name));
   assert.deepEqual(s.roster.map(p=>[p.id,p.stats,p.grade,p.traits]),old.roster.map(p=>[p.id,p.stats,p.grade,p.traits]));
   assert.deepEqual(s.mastery,old.mastery);
   const snapshot=structuredClone(s);
@@ -37,7 +37,7 @@ test('all six ranks and ten portraits occur and each opening pack has nine diffe
 
 test('movement stops at gates; only the landing square acts and numbered cards vary',()=>{
   const s=school(78);
-  const c=s.cards.find(c=>c.steps===2);
+  const c=s.cards[0];c.steps=2;
   const money=s.cash;
   assert.ok(G.practice(s,s.cards.indexOf(c)));
   assert.equal(s.day,2);assert.equal(s.phase,'shop');
@@ -45,29 +45,28 @@ test('movement stops at gates; only the landing square acts and numbered cards v
   G.acknowledge(s);
   assert.ok(G.visitAction(s,3));
   assert.ok(s.cards.every(c=>G.landing(s,c)===3));
-  assert.deepEqual(s.cards.map(c=>c.steps).sort(),[1,2,3]);
+  assert.equal(s.cards.length,4);
 });
 
 test('good and adverse squares alter the cash outcome on arrival',()=>{
   for(const [day,delta] of [[0,5],[5,-3]]){
     const s=school(123);
     s.day=day;
-    const old=s.cash;
+    s.cards[0].steps=1;const old=s.cash;
     assert.ok(G.practice(s,s.cards.findIndex(c=>c.steps===1)));
     assert.equal(s.day,day+1);assert.equal(s.cash-old,delta);
   }
 });
 
-test('purchased training bonuses apply to future cards, and each shop tracks sold stock',()=>{
+test('shop acquisitions stay in the notebook until a build, and each card can be bought once',()=>{
   const s=school(36);
-  s.phase='shop';s.visit={sold:[false,false,false]};
-  const card={k:2,tier:0,steps:1},before=G.gain(s,card);
-  s.cash=9;assert.equal(G.visitAction(s,2),false);
-  s.cash=20;assert.ok(G.visitAction(s,2));
-  assert.equal(s.cash,10);assert.equal(G.gain(s,card),before+1);
+  s.phase='shop';s.offers=[15,16,17];s.cash=9;
   assert.equal(G.visitAction(s,2),false);
-  assert.ok(G.visitAction(s,0));assert.ok(G.visitAction(s,3));
-  assert.equal(s.phase,'practice');
+  s.cash=G.price(s,2);assert.ok(G.visitAction(s,2));assert.equal(s.cash,0);
+  assert.ok(G.D.card(s,17));assert.ok(!s.deck.includes(17));
+  s.cash=100;assert.equal(G.visitAction(s,2),false);
+  assert.ok(G.expandHand(s));assert.equal(s.handSize,5);assert.equal(s.cards.length,5);
+  assert.ok(G.visitAction(s,3));
 });
 
 test('exhibition wins grant one selectable upgrade, losses grant participation money',()=>{
@@ -78,18 +77,18 @@ test('exhibition wins grant one selectable upgrade, losses grant participation m
     assert.ok(G.visitAction(s,1));outcomes.add(s.phase);
     if(s.phase==='prize'){
       assert.equal(s.cash,20);const saved=JSON.parse(JSON.stringify(s));
-      assert.ok(G.visitAction(saved,2));assert.equal(saved.drills[2],1);
+      assert.ok(G.visitAction(saved,2));assert.ok(G.D.card(saved,saved.offers[2]));
       assert.equal(G.visitAction(saved,2),false);
     }else assert.equal(s.cash,14);
   }
   assert.deepEqual([...outcomes].sort(),['practice','prize']);
 });
 
-test('OB events allow money or seasonal development; permanent facilities survive promotion',()=>{
+test('Community events allow money or a skill lesson; permanent facilities survive promotion',()=>{
   const a=school(133);a.phase='event';a.visit={k:1};
   const b=structuredClone(a);
   assert.ok(G.visitAction(a,0));assert.equal(a.cash,22);
-  assert.ok(G.visitAction(b,1));assert.equal(b.drills[1],1);
+  assert.ok(G.visitAction(b,1));assert.ok(b.report);G.acknowledge(b);
   b.facility[1]=2;b.phase='graduate';
   assert.ok(G.graduate(b));assert.deepEqual(b.drills,[0,0,0]);
   assert.equal(b.facility[1],2);assert.equal(b.roster.length,9);
