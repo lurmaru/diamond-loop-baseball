@@ -8,6 +8,11 @@
   ];
   const specialties=['打撃','投球','守備'];
   const effects=['','', '', '', 'pair','focus','chain','focus','chain'];
+  const rarity=c=>['N','R','SR'][c.tier]||'N';
+  // The secondary skill follows the drill itself, e.g. batting power for long tee,
+  // pitch control for precision work, and arm strength for relay throws.
+  const specialtiesByRow=[[3,7,8],[6,4,5],[3,7,8],[3,4,5],[6,4,5],[6,4,8],[3,4,5],[6,4,8],[6,7,8]];
+  const specialty=c=>specialtiesByRow[Math.floor(c.id/3)][c.k];
   function make(id){
     const k=id%3, row=Math.floor(id/3);
     return {id,k,name:names[k][row],steps:1+(row+k)%3,tier:row<3?0:row<7?1:2,effect:effects[row],evolved:false,mentor:null};
@@ -63,9 +68,14 @@
     if(s.phase!=='build'||s.report||s.draft.length<minimum(s))return false;
     s.deck=s.draft.slice();s.draft=[];reset(s,random);s.phase='practice';return true;
   }
-  function offers(s,random){
+  function offers(s,random,guaranteed=false){
     const missing=Array.from({length:27},(_,i)=>i).filter(id=>!card(s,id));
-    return shuffle(missing,random).slice(0,3);
+    const regular=shuffle(missing.filter(id=>make(id).tier<2),random);
+    const rare=missing.filter(id=>make(id).tier===2);
+    if(rare.length && ((!regular.length&&guaranteed)||random()<(regular.length ? .18 : .32))){
+      return shuffle([...regular.slice(0,2),rare[Math.floor(random()*rare.length)]],random);
+    }
+    return regular.slice(0,3);
   }
   function acquire(s,id){
     if(!Number.isInteger(id)||id<0||id>=27||card(s,id))return false;
@@ -73,14 +83,14 @@
   }
   function detail(c){
     const lines=[];
-    if(c.effect==='pair')lines.push(['一塁手の打撃も +2','捕手の守備も +2','遊撃手の守備も +2'][c.k]);
-    if(c.effect==='focus')lines.push('重点選手 +2');
-    if(c.effect==='chain'||c.evolved)lines.push(specialties[(c.k+2)%3]+'の次なら成長 +2');
-    if(c.mentor)lines.push(c.mentor+'直伝・成長 +1、特能率上昇');
+    if(c.effect==='pair')lines.push(['一塁手の打撃に練習点 +2','捕手の守備に練習点 +2','遊撃手の守備に練習点 +2'][c.k]);
+    if(c.effect==='focus')lines.push('重点選手に練習点 +2');
+    if(c.effect==='chain'||c.evolved)lines.push(specialties[(c.k+2)%3]+'の次なら練習点 +2');
+    if(c.mentor)lines.push(c.mentor+'直伝・練習点 +1、特能率上昇');
     return lines.join(' ／ ');
   }
   const slotPrice=s=>24+18*(s.handSize-4)**2;
-  const api={make,card,minimum,shuffle,init,refill,reset,spend,begin,toggle,lock,offers,acquire,detail,slotPrice};
+  const api={rarity,specialty,make,card,minimum,shuffle,init,refill,reset,spend,begin,toggle,lock,offers,acquire,detail,slotPrice};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else globalThis.ClubCards=api;
 })();

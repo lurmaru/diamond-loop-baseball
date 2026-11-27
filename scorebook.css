@@ -169,6 +169,20 @@ summary {cursor:pointer;min-height:44px;padding:8px 0;font-weight:bold}
 .hand-data {padding:10px;min-width:0}
 .hand-data>* {display:block}.hand-data strong {font-size:17px}.hand-data b {color:var(--tone);font-size:15px}
 .hand-data>span,.hand-data>small {font-size:12px;color:var(--muted)}
+.card-rank {position:absolute;right:4px;top:3px;padding:1px 5px;background:#425a4b;color:white;border-radius:3px;font:bold 11px/1.4 Georgia,serif}
+.rarity-R .card-rank {background:#315e83}.rarity-SR .card-rank {background:#755015;color:#fff3c4}
+.rarity-SR .hand-art {background:linear-gradient(130deg,#f8e9a6,var(--wash) 65%,#f5d082)}
+.deck-card.selected {outline:2px solid var(--forest);outline-offset:-2px}
+.deck-card .card-destination {font-weight:700;color:var(--forest)}
+.hand-data .card-destination {margin-top:3px}
+.year-plan {border-top:1px solid var(--line);margin-top:12px;font-size:13px}.year-plan small {float:right;color:var(--muted)}
+.year-plan ol {margin:0;padding:0;list-style:none}.year-plan li {padding:5px 0;border-bottom:1px dotted var(--line)}.year-plan time {display:inline-block;min-width:6em;font-weight:bold}.year-plan .past {color:var(--muted)}
+.auto-practice {width:100%;margin-top:7px}.auto-note {color:var(--muted);font-size:12px;margin-top:4px}
+.player-detail {margin:5px 0;border-block:1px solid var(--line);font-size:12px}
+.player-detail label {display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:6px 0}
+.player-detail select {max-width:100%;min-height:40px;font-size:14px}
+.slot-row {display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line)}
+.slot-row>div {flex:1}.slot-row small {display:block;color:var(--muted)}.delete-link {color:var(--rust);min-height:44px;text-decoration:underline}
 .focusline {margin-top:8px;font-size:12px}.focusline strong {color:var(--ink)}.focusline .linkbtn {margin-left:auto}
 .book-list small,.book-entry small {display:block;color:var(--muted);font-size:12px}
 .deck-lock {background:#e7eddf;border:1px solid #becab4;padding:9px 12px}

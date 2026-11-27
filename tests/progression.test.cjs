@@ -23,19 +23,20 @@ test('every new school receives the same 12 cards, already dealt in varying orde
 });
 
 test('preview and applied ordinary growth follow actual distance in every season and at gates',()=>{
-  for(const day of [0,6,11,18,32]){
+  for(const day of [0,70,111,183,333]){
     for(const steps of [1,2,3]){
       const s=openSchool(6743);
-      s.day=day;s.qualified=day===32;
+      s.day=day;s.qualified=day===333;
       const c=s.cards[0];
       Object.assign(c,{k:0,steps,tier:0,effect:''});
       const player=s.roster.find(p=>p.id!==s.focus);
       player.genius=false;player.stats[0]=20;
-      const walked=[6,32].includes(day)?1:steps;
-      assert.equal(G.gain(s,c),walked*2);
+      const walked=[70,333].includes(day)?1:steps;
+      const base=[0,2,4.6,7.8][walked];
+      assert.equal(G.gain(s,c),base);
       assert.ok(G.practice(s,0));
       assert.equal(s.day-day,walked);
-      assert.equal(player.stats[0]-20,walked*2);
+      assert.equal((player.stats[0]-20)*120+player.xp[0],Math.round(base*10));
     }
   }
 });
@@ -47,12 +48,12 @@ test('all six potentials stop actual training at the player limit, and Z can gro
   const players=s.roster.slice(0,ranks.length);
   players.forEach((p,i)=>{
     p.rank=ranks[i];p.genius=false;
-    p.stats[0]=i===5?10000:bases[i]+10;
+    p.stats[0]=i===5?10000:bases[i]+10;p.xp[0]=110;
     assert.equal(G.cap(s,p),bases[i]+11);
   });
   Object.assign(s.cards[0],{k:0,tier:0,steps:3,effect:''});
   G.practice(s,0);
-  players.forEach((p,i)=>assert.equal(p.stats[0],i===5?10006:bases[i]+11));
+  players.forEach((p,i)=>assert.equal(p.stats[0],i===5?10001:bases[i]+11));
   const saved=JSON.parse(JSON.stringify(s));
   assert.equal(G.cap(saved,saved.roster[5]),Infinity);
 });
@@ -64,14 +65,15 @@ test('a returning school retains previously trained stats and an unfinished inau
   const p=s.roster[1];p.rank='C';p.stats=[81,39,44];
   const draft=s.draft.slice();
   G.migrate(s);
-  assert.deepEqual(p.stats,[81,39,44]);assert.equal(G.cap(s,p),81);
+  assert.deepEqual(p.stats.slice(0,3),[81,39,44]);assert.equal(G.cap(s,p),81);
   assert.deepEqual(s.draft,draft);assert.equal(s.phase,'build');
   const copy=structuredClone(s);
   assert.deepEqual(G.migrate(copy),s);
   s.points=100;G.upgrade(s,2);assert.equal(G.cap(s,p),85);
   assert.ok(G.lockDeck(s));
   Object.assign(s.cards[0],{k:0,steps:3});
-  G.practice(s,0);assert.equal(p.stats[0],85);
+  p.xp[0]=119;
+  G.practice(s,0);assert.equal(p.stats[0],82);
 });
 
 test('recruit quality grows with years, wins and scouting; rare ranks remain random',t=>{
@@ -86,14 +88,15 @@ test('recruit quality grows with years, wins and scouting; rare ranks remain ran
       }
       for(const p of s.pack){
         total++;high+=['A','S','SS','Z'].includes(p.rank);
-        sum+=p.stats.reduce((a,b)=>a+b,0)/3;
+        sum+=p.stats.reduce((a,b)=>a+b,0)/p.stats.length;
       }
     }
     return {year,wins,network,players:total,high:high/total,mean:sum/total};
   });
   summary.forEach((v,i)=>{
-    if(i){assert.ok(v.high>summary[i-1].high+.008);assert.ok(v.mean>summary[i-1].mean+1);}
-    assert.ok(v.high<.48 && v.high>.23);
+    if(i){assert.ok(v.high>summary[i-1].high+.08);assert.ok(v.mean>summary[i-1].mean+.8);}
+    if(i===0)assert.ok(v.high>.09&&v.high<.11);
+    if(i===3)assert.ok(v.high>.85&&v.high<.98);
     t.diagnostic(`year ${v.year}, wins ${v.wins}, scouting Lv.${v.network}: ${v.players} recruits, A+ ${(100*v.high).toFixed(1)}%, mean starting stat ${v.mean.toFixed(1)}`);
   });
 });

@@ -113,7 +113,9 @@ def exercise(b, url, shots):
     opening=b.js(state_expr)
     assert opening['phase']=='practice' and opening['deck']==list(range(12))
     assert not b.js("document.querySelector('[data-act=lock]')")
-    assert len(opening['cards'])==4
+    assert len(opening['cards'])==4 and len(opening['tiles'])==365
+    hand=b.js("Array.from(document.querySelectorAll('[data-act=practice]'),e=>[e.innerText,e.querySelector('img').src,e.querySelector('.card-rank').textContent])")
+    assert all('の伸び' in v and '＋' not in v and '%' not in v and src and rank in ['N','R','SR'] for v,src,rank in hand)
     def layouts(name):
         for w in [320,390,768,1440]:
             b.screen(w,844)
@@ -122,10 +124,17 @@ def exercise(b, url, shots):
                 b.shot(shots,f'{name}-{w}')
         b.screen(390,844)
     layouts('calendar')
+    b.click('.year-plan summary')
+    assert '365日' in b.js("document.querySelector('.year-plan').innerText") and b.js("document.querySelectorAll('.year-plan li').length")==9
+    b.click('.year-plan summary')
     b.click('#settings')
     b.click('[data-act=sound]')
     b.click('[data-act=close]')
     b.click('[data-act=tab][data-n="1"]')
+    b.click('.player-detail summary')
+    b.js("(()=>{let el=document.querySelector('[data-individual]');el.value=el.value==='4'?'6':'4';el.dispatchEvent(new Event('change',{bubbles:true}));})()")
+    assert b.js("Number(document.querySelector('[data-individual]').value)")==b.js(state_expr)['roster'][0]['individual']
+    assert len(b.js(state_expr)['roster'][0]['stats'])==9
     layouts('team')
     b.click('[data-act=focus]:not(:disabled)')
     b.click('[data-act=tab][data-n="0"]')
@@ -140,7 +149,7 @@ def exercise(b, url, shots):
     phases=set()
     builds=[]
     match_seen=False
-    for _ in range(140):
+    for _ in range(350):
         s=b.js(state_expr)
         phase=s['phase']
         phases.add(phase)
@@ -149,10 +158,13 @@ def exercise(b, url, shots):
         elif s['year']>=2 and phase=='practice':
             break
         elif phase=='practice':
-            i=min(range(len(s['cards'])),key=lambda i:s['cards'][i]['steps'])
-            b.click(f'[data-act=practice][data-n="{i}"]')
+            b.click('[data-act=auto]')
+            assert 1<=b.js(state_expr)['day']-s['day']<=14
         elif phase=='build':
             builds.append((s['year'],s['buildWindow']))
+            printed=b.js("document.querySelector('[data-act=toggle][data-n=\\\"0\\\"]').innerText")
+            assert '素振り' in printed and '打撃 ＋2' in printed and '練習点' in b.js("document.querySelector('.board .hint').textContent")
+            assert b.js("Array.from(document.querySelectorAll('.deck-card')).every(e=>e.querySelector('img') && e.querySelector('.card-rank'))")
             if s['year']==1:
                 b.click('[data-act=toggle][data-n="13"]')
                 b.click('[data-act=toggle][data-n="0"]')
@@ -190,6 +202,7 @@ def exercise(b, url, shots):
     assert len(s['roster']) in [12,13]
     b.click('[data-act=tab][data-n="2"]')
     layouts('facilities')
+    assert b.js("document.querySelectorAll('.upgrade').length")==6
     b.click('[data-act=upgrade]:not(:disabled)')
     assert sum(b.js(state_expr)['facility'])==1
     b.click('[data-act=tab][data-n="3"]')
@@ -207,21 +220,28 @@ def exercise(b, url, shots):
     b.click('[data-act=visit][data-n="3"]')
     assert len(b.js(state_expr)['cards'])==5
     assert b.js('document.querySelectorAll(".hand-card").length')==5
-    fixture("const p=s.roster[0];p.grade=3;p.traits=[0,4,0];s.graduates=[p.id];s.phase='graduate';G.graduate(s,p.id);while(G.flip(s)){}G.enroll(s,s.pack[0].id);G.lockDeck(s);s.day=21;G.practice(s,0);G.acknowledge(s)")
+    fixture("const p=s.roster[0];p.grade=3;p.traits=[0,4,0];s.graduates=[p.id];s.phase='graduate';G.graduate(s,p.id);while(G.flip(s)){}G.enroll(s,s.pack[0].id);G.lockDeck(s);s.day=G.Y.events.alumni-1;G.practice(s,0);G.acknowledge(s)")
     b.click('[data-act=teach][data-n="13"]')
     assert next(c for c in b.js(state_expr)['library'] if c['id']==13)['mentor']
-    fixture("s.day=18;s.phase='match';s.match={round:0,competition:'autumn',level:52,opp:'試験校',us:3,them:1,step:3,scene:0,plays:[],finished:true}")
+    fixture("s.day=G.Y.events.autumn;s.phase='match';s.match={round:0,competition:'autumn',level:52,opp:'試験校',us:3,them:1,step:3,scene:0,plays:[],finished:true}")
     b.click('[data-act=exitMatch]')
-    assert b.js(state_expr)['tiles'][33]=='spring'
+    assert b.js(state_expr)['tiles'][334]=='spring'
     # A returning player's real v1 fixture resumes where it left off and can try the
     # new opening without losing that school.
+    previous=json.loads((ROOT/'tests'/'v4-autumn-save.json').read_text(encoding='utf8'))
+    b.js('localStorage.setItem('+json.dumps(KEY)+','+json.dumps(json.dumps(previous))+')')
+    b.send('Page.reload')
+    b.wait("document.querySelector('[data-act=play]')")
+    upgraded=b.js(state_expr)
+    assert upgraded['day']==183 and upgraded['match']==previous['match'] and upgraded['version']==5
+    assert len(upgraded['roster'][0]['stats'])==9
     legacy=json.loads((ROOT/'tests'/'legacy-save.json').read_text(encoding='utf8'))
     b.js('localStorage.setItem('+json.dumps(KEY)+','+json.dumps(json.dumps(legacy))+')')
     b.send('Page.reload')
     b.wait('document.querySelector(".road")')
     migrated=b.js(state_expr)
     assert migrated['year']==legacy['year'] and migrated['phase']==legacy['phase']
-    assert migrated['roster'][0]['stats']==legacy['roster'][0]['stats']
+    assert migrated['roster'][0]['stats'][:3]==legacy['roster'][0]['stats']
     b.click('#settings')
     b.click('[data-act=switchSchool]')
     assert b.js('document.querySelectorAll(".sealed").length')==9
@@ -231,8 +251,33 @@ def exercise(b, url, shots):
     b.click('#settings')
     b.click('[data-act=switchSchool]')
     assert b.js(state_expr)==migrated
+    # Cancel deletion, delete the inactive slot, then erase the active slot.
+    b.click('#settings')
+    b.click('[data-act=askDelete][data-n="2"]')
+    b.click('[data-act=cancelDelete]')
+    assert b.js("JSON.parse(localStorage.getItem('diamond-loop.school.second')).drawn")==1
+    b.click('[data-act=askDelete][data-n="2"]')
+    b.click('[data-act=deleteSlot]')
+    assert b.js("localStorage.getItem('diamond-loop.school.second')")==None
+    assert b.js(state_expr)==migrated
+    b.click('#settings')
+    b.click('[data-act=askDelete][data-n="1"]')
+    b.click('[data-act=deleteSlot]')
+    b.send('Page.reload')
+    b.wait("document.querySelectorAll('.sealed').length===9")
+    assert b.js(state_expr)==None
+    b.click('[data-act=flip]')
+    assert b.js(state_expr)['drawn']==1
+    b.click('#settings')
+    b.click('[data-act=switchSchool]')
+    b.click('[data-act=flip]')
+    b.click('#settings')
+    b.click('[data-act=askDelete][data-n="2"]')
+    b.click('[data-act=deleteSlot]')
+    assert b.js("localStorage.getItem('diamond-loop.active')")=='1'
+    assert b.js(state_expr)['drawn']==1 and b.js("localStorage.getItem('diamond-loop.school.second')")==None
     assert not b.errors, b.errors
-    print('PASS widths 320/390/768/1440, fixed opening deck, summer/spring edits, qualitative tactics, camps, recruiting, shop, returning alumnus, promotion, migration and two save slots',flush=True)
+    print('PASS widths 320/390/768/1440, fixed opening deck, summer/spring edits, 365-day season, illustrated rarity cards, qualitative growth, individual training, six facilities, deletion, camps, recruiting, shop, returning alumnus, promotion, migration and two save slots',flush=True)
 
 
 def main():

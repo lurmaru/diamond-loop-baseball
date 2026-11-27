@@ -32,9 +32,9 @@ test('only the summer result opens the second deck edit; autumn decides whether 
     const s=playing();
     s.phase='match';s.match={competition:'summer',round:3,finished:true,us:0,them:1};
     assert.ok(G.exitMatch(s));assert.equal(s.buildWindow,'summer');G.lockDeck(s);
-    s.day=18;s.phase='match';s.match={competition:'autumn',round:0,finished:true,us:+win,them:+!win};
+    s.day=G.Y.events.autumn;s.phase='match';s.match={competition:'autumn',round:0,finished:true,us:+win,them:+!win};
     G.exitMatch(s);assert.equal(s.phase,'practice');assert.equal(s.qualified,win);
-    s.day=32;s.cards[0].steps=2;
+    s.day=G.Y.events.spring-1;s.cards[0].steps=2;
     assert.ok(G.practice(s,0));assert.equal(s.phase,win?'match':'practice');
     if(win){
       assert.equal(s.match.competition,'spring');G.acknowledge(s);
@@ -49,7 +49,7 @@ test('ordinary practice cannot roll traits; a camp roll uses one card and reward
   let successes=0;
   for(let i=1;i<=240;i++){
     const s=playing(i*831),before=s.roster.map(p=>p.traits.slice());
-    s.day=6;G.practice(s,0);
+    s.day=G.Y.events.summerCamp-1;G.practice(s,0);
     assert.equal(s.phase,'camp');assert.deepEqual(s.roster.map(p=>p.traits),before);
     G.acknowledge(s);const k=s.cards[0].k,holder=s.focus;
     G.campTrain(s,0);assert.ok(s.report);assert.equal(G.campTrain(s,0),false);
@@ -64,7 +64,7 @@ test('an actual graduate returns; a signed card and an evolution survive reshuff
   const senior=s.roster[0];senior.grade=3;senior.traits=[0,4,0];
   s.phase='graduate';s.graduates=[senior.id];G.graduate(s,senior.id);
   while(G.flip(s)){}G.enroll(s,s.pack[0].id);G.lockDeck(s);
-  s.day=21;G.practice(s,0);G.acknowledge(s);assert.equal(s.phase,'mentor');
+  s.day=G.Y.events.alumni-1;G.practice(s,0);G.acknowledge(s);assert.equal(s.phase,'mentor');
   assert.equal(s.visitor.id,senior.id);assert.ok(G.teach(s,13));
   assert.equal(G.teach(s,13),false);
   s=JSON.parse(JSON.stringify(s));const c=D.card(s,13);
@@ -84,5 +84,5 @@ test('winter rumor changes both freshman position and rank probabilities, then e
     while(G.flip(s)){}G.enroll(s,s.pack[0].id);assert.equal(s.rumor,null);
   }
   assert.ok(tally.rumor[0]>300&&tally.plain[0]===0);
-  assert.ok(tally.rumor[1]/tally.rumor[0]>0.36);
+  assert.ok(tally.rumor[1]/tally.rumor[0]>0.16);
 });

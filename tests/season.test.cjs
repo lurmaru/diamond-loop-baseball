@@ -12,13 +12,13 @@ function school(seed){
 test('the actual first release save migrates once, preserving the roster, hand and progress',()=>{
   const old=require('./legacy-save.json');
   const s=G.migrate(structuredClone(old));
-  assert.equal(s.day,3);assert.equal(s.year,old.year);assert.equal(s.phase,old.phase);
+  assert.equal(s.day,30);assert.equal(s.year,old.year);assert.equal(s.phase,old.phase);
   assert.deepEqual(s.cards.slice(0,old.cards.length).map(c=>c.name),old.cards.map(c=>c.name));
-  assert.deepEqual(s.roster.map(p=>[p.id,p.stats,p.grade,p.traits]),old.roster.map(p=>[p.id,p.stats,p.grade,p.traits]));
+  assert.deepEqual(s.roster.map(p=>[p.id,p.stats.slice(0,3),p.grade,p.traits]),old.roster.map(p=>[p.id,p.stats,p.grade,p.traits]));
   assert.deepEqual(s.mastery,old.mastery);
   const snapshot=structuredClone(s);
   assert.deepEqual(G.migrate(s),snapshot);
-  assert.ok(G.practice(s,0));assert.ok(s.day>3);
+  assert.ok(G.practice(s,0));assert.ok(s.day>30);
 });
 
 test('all six ranks and ten portraits occur and each opening pack has nine different faces',()=>{
@@ -41,15 +41,16 @@ test('movement stops at gates; only the landing square acts and numbered cards v
   const money=s.cash;
   assert.ok(G.practice(s,s.cards.indexOf(c)));
   assert.equal(s.day,2);assert.equal(s.phase,'shop');
-  assert.equal(s.cash,money+2);
+  assert.equal(s.cash,money);
   G.acknowledge(s);
   assert.ok(G.visitAction(s,3));
-  assert.ok(s.cards.every(c=>G.landing(s,c)===3));
+  s.day=G.Y.events.policy-1;
+  assert.ok(s.cards.every(c=>G.landing(s,c)===G.Y.events.policy));
   assert.equal(s.cards.length,4);
 });
 
 test('good and adverse squares alter the cash outcome on arrival',()=>{
-  for(const [day,delta] of [[0,5],[5,-3]]){
+  for(const [day,delta] of [[0,2],[5,-2]]){
     const s=school(123);
     s.day=day;
     s.cards[0].steps=1;const old=s.cash;

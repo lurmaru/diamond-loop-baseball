@@ -2,7 +2,10 @@
 (function () {
   'use strict';
   const D=typeof module!=='undefined'&&module.exports?require('./cards.js'):globalThis.ClubCards;
+  const Y=typeof module!=='undefined'&&module.exports?require('./calendar.js'):globalThis.ClubCalendar;
   const labels = ['打撃', '投球', '守備'];
+  const statNames=[...labels,'長打力','制球力','走力','選球眼','球威','肩力'];
+  const facilityNames=['練習設備','スカウト網','育成研究室','個別練習棟','合宿寮','後援会館'];
   const policies = ['強打主義', '投手王国', '堅守野球'];
   const traits = ['勝負強さ', '奪三振', '好守'];
   const schools = ['港南工業', '稜北学院', '明星大附属', '白嶺学園', '東雲実業', '神楽坂高校'];
@@ -31,11 +34,19 @@
   const limitBonus=s=>4*s.facility[2]+(s.manuals||0);
   const cap=(s,p)=>Math.max(potential[p.rank],p.legacyBase||0)+limitBonus(s);
   function scoutProfile(s){
-    const experience=(s.year-1)/18+s.wins/110+s.facility[1]/10;
-    return {
-      secondLook:0.88*(1-Math.exp(-experience)),
-      startingBonus:Math.floor(4*Math.log2(1+experience))+2*s.facility[1]
-    };
+    const experience=(s.year-1)/56+s.wins/85+(s.titles+(s.springTitles||0))/35+s.facility[1]*.105;
+    const reputation=1-Math.exp(-experience);
+    return {high:.10+.87*reputation,reputation,startingBonus:Math.floor(6*Math.log2(1+experience))+2*s.facility[1]};
+  }
+  function initSkills(s,p,roll){
+    for(let k=p.stats.length;k<statNames.length;k++){
+      const affinity=(k-3)%3;
+      const spread=Math.floor(roll()*15)-7;
+      const positional=(p.slot===0&&affinity===1)||(p.slot>=6&&k===5)||(p.slot===1&&k===8)?5:0;
+      p.stats.push(Math.max(1,Math.min(cap(s,p),p.stats[affinity]+spread+positional)));
+    }
+    p.individual??=p.stats.indexOf(Math.max(...p.stats.slice(3)),3);
+    p.xp??=Array(statNames.length).fill(0);
   }
   const styles=['基礎の徹底','個別指導','実戦主義'];
   const combos=['投打の柱','黄金バッテリー','攻守一体'];
@@ -47,9 +58,10 @@
   function player(s, slot, grade, fresh=false) {
     const scout=scoutProfile(s);
     let roll=random(s);
-    if(scout.secondLook>0 && random(s)<scout.secondLook)roll=Math.min(roll,random(s));
     if(s.rumor===slot)roll=Math.min(roll,random(s));
-    const rank=roll<0.005?'Z':roll<0.025?'SS':roll<0.09?'S':roll<0.25?'A':roll<0.57?'B':'C';
+    const h=scout.high,q=scout.reputation;
+    const rank=roll<h*(.008+.012*q)?'Z':roll<h*(.043+.092*q)?'SS':roll<h*(.20+.27*q)?'S':
+      roll<h?'A':roll<h+(1-h)*.42?'B':'C';
     const genius=['S','SS','Z'].includes(rank);
     const bonus={C:0,B:2,A:5,S:8,SS:12,Z:16}[rank];
     const p={id:s.nextId++,name:pick(s,families)+' '+pick(s,names),slot,grade,genius,rank,face:int(s,10),
@@ -58,21 +70,15 @@
       const aptitude = k===(slot===0?1:slot%3)?6:0;
       p.stats.push(Math.min(cap(s,p),22+int(s,12)+aptitude+grade*2+bonus+scout.startingBonus));
     }
+    initSkills(s,p,()=>random(s));
     if (genius || (fresh && random(s)<0.2)) p.traits[int(s,3)]=1;
     return p;
   }
   const tileNames={plain:'練習',good:'好調',bad:'逆風',event:'イベント',shop:'購買部',friendly:'練習試合',policy:'方針会議',skill:'特能指導',camp:'合宿',autumn:'秋予選',spring:'春本戦',rumor:'地元だより',alumni:'OB来訪',summer:'夏の大会',end:'年度末'};
-  const gates=[3,7,11,18,22,24,27,35];
-  const date=day=>((3+Math.floor(day/3))%12+1)+'月'+[1,11,21][day%3]+'日';
+  const {date,landing}=Y;
   function calendar(s){
-    s.day=0;
-    s.tiles=Array.from({length:36},()=>pick(s,['plain','good','bad','event','shop','friendly','good','plain']));
-    for(const [day,type] of [[0,'plain'],[1,'good'],[2,'shop'],[3,'policy'],[4,'event'],[5,'friendly'],[6,'bad'],[7,'camp'],[9,'shop'],[11,'summer'],[13,'friendly'],[17,'shop'],[18,'autumn'],[22,'alumni'],[24,'camp'],[27,'rumor'],[33,'plain'],[26,'friendly'],[30,'shop'],[35,'end']])s.tiles[day]=type;
+    s.day=0;s.tiles=Y.make(()=>random(s));
     s.drills=[0,0,0];s.visit=null;s.qualified=false;
-  }
-  function landing(s,c){
-    const limit=(s.qualified?[...gates.slice(0,-1),33,35]:gates).find(d=>d>s.day)??35;
-    return Math.min(s.day+c.steps,limit);
   }
   const deal=s=>D.refill(s,()=>random(s));
   const lockDeck=s=>D.lock(s,()=>random(s));
@@ -88,7 +94,7 @@
     return s.roster.find(p=>p.id===s.focus)||s.roster[0];
   }
   function skillOdds(s,c,camp){
-    return (camp?(c.mentor?0.65:0.4):(c.mentor?0.2:0.1))+(s.policy===c.k&&s.style===0?0.05:0);
+    return (camp?(c.mentor?0.65:0.4):(c.mentor?0.2:0.1))+(s.policy===c.k&&s.style===0?0.05:0)+(camp ? .18*s.facility[4]/(s.facility[4]+3) : 0);
   }
   const skillName=c=>c.k===1&&c.effect==='pair'?'好リード':traits[c.k];
   function skillRoll(s,c,camp){
@@ -124,8 +130,8 @@
     updateCard(s,c);s.phase='practice';return true;
   }
   function initial(seed=Date.now()){
-    const s={version:4,rng:seed>>>0,year:1,week:0,phase:'intake',nextId:1,
-      roster:[],cards:[],points:0,facility:[0,0,0],mastery:[0,0,0],policy:-1,
+    const s={version:5,rng:seed>>>0,year:1,week:0,phase:'intake',nextId:1,
+      roster:[],cards:[],points:0,facility:facilityNames.map(()=>0),mastery:[0,0,0],policy:-1,
       focus:null,logs:[],titles:0,wins:0,games:0,best:0,challenge:0,record:0,
       match:null,options:[],report:null,graduates:[],heir:null,yearWins:0,skillPool:[],style:-1,manuals:0,cash:12};
     D.init(s);s.alumni=[];s.rumor=null;
@@ -166,7 +172,7 @@
       for(const p of [...s.roster,...(s.phase==='recruit'?s.options:[])]){
         p.face=p.id%10;p.rank=p.genius?'S':p.stats.some(v=>v>=42)?'A':'B';
       }
-      calendar(s);s.cash=12;
+      s.tiles=Array(36).fill('plain');s.drills=[0,0,0];s.visit=null;s.cash=12;
       s.day=[0,3,4,6,7,9,11,17,22,28,35][s.week]??0;
       if(s.phase==='practice')s.cards.forEach((c,i)=>c.steps=i+1);
     }
@@ -182,23 +188,27 @@
     s.version=3;return s;
   }
   function migrate(s){
-    if(s.version===4)return s;
-    migrateDeck(s);
+    if(s.version===5)return s;
+    if(s.version<4)migrateDeck(s);
+    while(s.facility.length<facilityNames.length)s.facility.push(0);
     const players=[...s.roster,...(s.pack||[]),...(s.phase==='recruit'?s.options:[])];
     for(const p of players){
       const previous=Math.max(...p.stats);
       if(previous>cap(s,p))p.legacyBase=previous-limitBonus(s);
+      let seed=(Math.imul(p.id,2654435761)^s.rng)>>>0;
+      initSkills(s,p,()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296));
     }
     // Keep an existing, unfinished build exactly as the returning coach left it.
-    s.version=4;return s;
+    Y.migrate(s);s.version=5;return s;
   }
   function strength(s,k){
     if(!s.roster.length)return 0;
-    const vals=s.roster.map(p=>p.stats[k]+3*p.traits[k]).sort((a,b)=>b-a);
+    const value=p=>.56*p.stats[k]+.26*p.stats[k+3]+.18*p.stats[k+6]+3*p.traits[k];
+    const vals=s.roster.map(value).sort((a,b)=>b-a);
     const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
-    const ace=s.roster.filter(p=>p.slot===0).sort((a,b)=>(b.stats[1]+3*b.traits[1])-(a.stats[1]+3*a.traits[1]))[0];
+    const ace=k===1?Math.max(...s.roster.filter(p=>p.slot===0).map(value)):0;
     const calling=k===1?Math.max(0,...s.roster.filter(p=>p.slot===1).map(p=>p.lead||0))*2:0;
-    return calling+Math.round(k===1 && ace?avg*0.45+(ace.stats[1]+3*ace.traits[1])*0.55:avg*0.65+vals[0]*0.35);
+    return calling+Math.round(k===1 && ace>0?avg*0.45+ace*0.55:avg*0.65+vals[0]*0.35);
   }
   const power=s=>Math.round(labels.reduce((a,_,k)=>a+strength(s,k),0)/3);
   function synergy(s,k){
@@ -206,11 +216,27 @@
     return {ranks,active:ranks.every(v=>v>=2)};
   }
   const distance=(s,c)=>landing(s,c)-s.day;
+  const trainingDuration=days=>days*(1+.15*(days-1));
   function gain(s,c){
     const coaching=s.policy===c.k?1+Math.floor(Math.sqrt(s.mastery[c.k])/2):0;
     const daily=2+c.tier+s.drills[c.k]+Math.floor(s.facility[0]/2)+coaching;
     const chain=(c.evolved||c.effect==='chain')&&s.lastKind===(c.k+2)%3?2:0;
-    return distance(s,c)*daily+(c.mentor?1:0)+chain;
+    const days=distance(s,c);
+    return Math.round(trainingDuration(days)*daily*10)/10+(c.mentor?1:0)+chain;
+  }
+  function growthHint(s,c){
+    const points=gain(s,c);
+    return points<3?'軽め':points<6?'着実':points<10?'大きめ':'特大';
+  }
+  function addXP(p,k,points,limit){
+    const units=p.xp[k]+Math.round(points*10);
+    p.stats[k]=Math.min(limit,p.stats[k]+Math.floor(units/120));
+    p.xp[k]=p.stats[k]>=limit?0:units%120;
+  }
+  function setIndividual(s,id,k){
+    const p=s.roster.find(v=>v.id===id);
+    if(!p||!Number.isInteger(k)||k<3||k>=statNames.length)return false;
+    p.individual=k;return true;
   }
   function outlook(chance){
     if(chance>=0.69)return '有利';
@@ -225,39 +251,41 @@
   function practice(s,index){
     if(s.phase!=='practice'||s.report||!s.cards[index])return false;
     const c=s.cards[index],k=c.k,g=gain(s,c),steps=distance(s,c),lead=s.roster.find(p=>p.id===s.focus)||s.roster[0];
-    let total=0;
+    const secondary=D.specialty(c),trainingDays=trainingDuration(steps);
     for(const p of s.roster){
-      const old=p.stats[k];
-      const extra=steps*(1+s.facility[0]%2)+(c.effect==='focus'?2:0)+(s.policy===k&&s.style===1?3:0);
-      p.stats[k]=Math.min(cap(s,p),old+g+(p.id===lead.id?extra:0)+(p.genius?steps:0));
-      total+=p.stats[k]-old;
+      const limit=cap(s,p);
+      const extra=p.id===lead.id?trainingDays*(1+s.facility[0]%2)+(c.effect==='focus'?2:0)+(s.policy===k&&s.style===1?3:0):0;
+      addXP(p,k,g+extra+(p.genius?trainingDays*.6:0),limit);
+      addXP(p,secondary,g*.70,limit);
+      addXP(p,p.individual,trainingDays*(.40+.12*s.facility[3])*(p.id===lead.id?2:1),limit);
     }
     if(c.effect==='pair'){
       const partner=trainingTarget(s,c),other=k===1?2:k;
-      partner.stats[other]=Math.min(cap(s,partner),partner.stats[other]+2);
+      addXP(partner,other,2,cap(s,partner));
     }
-    const dailyAwake=0.032+0.022*c.tier+(lead.genius?0.017:0)+(s.policy===k&&s.style===0?0.06:0);
+    const dailyAwake=.0028+.0018*c.tier+(lead.genius?.0014:0)+(s.policy===k&&s.style===0?.004:0);
     const awake=random(s)<1-(1-dailyAwake)**steps;
     const awakeningGain=awake?Math.min(4,cap(s,lead)-lead.stats[k]):0;
     lead.stats[k]+=awakeningGain;
-    const target=landing(s,c),income=target-s.day;
+    const target=landing(s,c),newMonth=Y.starts.some(d=>d>s.day&&d<=target);
+    const income=Math.floor(target/7)-Math.floor(s.day/7)+(newMonth?3*s.facility[5]:0);
     s.cash+=income;s.day=target;s.week++;
     s.report={type:awakeningGain?'awake':'practice',title:awakeningGain?lead.name+' が覚醒！':c.name+' 完了',
-      detail:awakeningGain?labels[k]+'能力がさらに +'+awakeningGain+'。':labels[k]+'の合計成長 +'+total+'。重点選手は '+lead.name+'。',
+      detail:awakeningGain?labels[k]+'能力がさらに +'+awakeningGain+'。':labels[k]+'と'+statNames[secondary]+'の練習を積んだ。重点選手は '+lead.name+'。',
       k,tier:c.tier};
-    if(!awake && random(s)<0.017){
+    if(!awake && random(s)<1-(1-.00085)**steps){
       s.manuals=(s.manuals||0)+1;s.points+=2;
       s.report={type:'manual',title:'黄金の指導書を発見！',detail:'学校の能力上限が永久に +1。さらに伝統Pt +2。',k,tier:2};
     }
     addLog(s,s.report.title,s.report.detail,s.report.type==='practice'?'train':'rare');
     const tile=s.tiles[s.day];
-    let outcome='部費 +'+income+'G';
+    let outcome=income?'部費 +'+income+'G':'練習終了';
     if(tile==='good'){
-      const bonus=Math.min(2,cap(s,lead)-lead.stats[k]);
-      s.cash+=4;lead.stats[k]+=bonus;
-      outcome+=' ／ 好調！'+(bonus?'重点選手 +'+bonus+'、':'')+'部費 +4G';
+      const bonus=Math.min(1,cap(s,lead)-lead.stats[k]);
+      s.cash+=2;lead.stats[k]+=bonus;
+      outcome+=' ／ 好調！'+(bonus?'重点選手 +'+bonus+'、':'')+'部費 +2G';
     }else if(tile==='bad'){
-      const repair=Math.min(4,s.cash);s.cash-=repair;outcome+=' ／ 用具修理 −'+repair+'G';
+      const repair=Math.min(2,s.cash);s.cash-=repair;outcome+=' ／ 用具修理 −'+repair+'G';
     }
     s.lastStop=date(s.day)+'・'+tileNames[tile]+' ｜ '+outcome;
     addLog(s,date(s.day)+'・'+tileNames[tile],outcome);
@@ -282,6 +310,22 @@
     }else deal(s);
     return true;
   }
+  function autoPractice(s){
+    if(s.phase!=='practice'||s.report)return false;
+    const until=Math.min(s.day+14,Y.events.end);
+    const start=s.day;
+    while(s.phase==='practice'&&!s.report&&s.day<until){
+      let index=-1,best=-Infinity;
+      for(const [i,c] of s.cards.entries()){
+        if(landing(s,c)>until)continue;
+        const score=gain(s,c)+(c.k===s.policy?2:0);
+        if(score>best){index=i;best=score;}
+      }
+      if(index<0||!practice(s,index))break;
+      if(s.report.type==='practice')acknowledge(s);
+    }
+    return s.day>start;
+  }
   const price=(s,i)=>s.offers?.[i]!=null?10+4*D.make(s.offers[i]).tier:Infinity;
   function expandHand(s){
     if(s.phase!=='shop'||s.report||s.cash<D.slotPrice(s)||s.handSize>=s.deck.length-1)return false;
@@ -305,7 +349,7 @@
       else {skillRoll(s,D.card(s,s.eventCard)||s.cards[0],false);message=s.report.title;}
     }else if(s.phase==='friendly'&&n<3){
       if(random(s)<friendlyOdds(s,n)){
-        s.phase='prize';s.offers=D.offers(s,()=>random(s));s.cash+=8;addLog(s,'練習試合に勝利','部費 +8G。練習帳に加える札を選べる。','win');return true;
+        s.phase='prize';s.offers=D.offers(s,()=>random(s),true);s.cash+=8;addLog(s,'練習試合に勝利','部費 +8G。練習帳に加える札を選べる。','win');return true;
       }
       s.cash+=2;message='練習試合に敗戦。参加助成 +2G';
     }else if(s.phase==='prize'&&n<3){
@@ -334,7 +378,7 @@
     const rivals=schools.filter(n=>!s.rivals?.includes(n));
     const opp=pick(s,rivals.length?rivals:schools);
     s.rivals=round===0?[opp]:[...(s.rivals||[]),opp];
-    s.match={round,opp,competition,level:(competition==='summer'?44+round*11:competition==='autumn'?57:68+round*10)+8*s.challenge,
+    s.match={round,opp,competition,level:(competition==='summer'?41+round*9:competition==='autumn'?55:66+round*9)+8*s.challenge,
       us:0,them:0,step:0,scene:int(s,3),plays:[],finished:false};
   }
   const matchName=m=>m.competition==='autumn'?'秋季予選 決勝':m.competition==='spring'?['春の本戦 準決勝','春の本戦 決勝'][m.round]:rounds[m.round];
@@ -379,7 +423,7 @@
       if(!m.competition||m.competition==='summer')D.begin(s,'summer');
       else {
         if(m.competition==='autumn'){
-          s.qualified=m.us>m.them;s.tiles[33]=s.qualified?'spring':'plain';
+          s.qualified=m.us>m.them;s.tiles[Y.events.spring]=s.qualified?'spring':'plain';
           addLog(s,s.qualified?'春本戦 出場決定':'秋予選 敗退',s.qualified?'3月1日に準決勝。':'次の夏に向けて練習を続けよう。');
         }
         s.phase='practice';
@@ -408,7 +452,11 @@
       if(!slots.includes(slot))slots.push(slot);
     }
     if(s.rumor!=null&&!slots.includes(s.rumor)&&random(s)<0.65)slots.push(s.rumor);
-    s.year++;s.week=0;s.yearWins=0;s.policy=-1;s.style=-1;s.lastStop='';
+    s.year++;
+    if(s.facility[5]){
+      const grant=3*s.facility[5];s.cash+=grant;addLog(s,'新年度の後援会費','部費 +'+grant+'G。');
+    }
+    s.week=0;s.yearWins=0;s.policy=-1;s.style=-1;s.lastStop='';
     calendar(s);beginIntake(s,slots);return true;
   }
   function recruit(s,i){
@@ -424,15 +472,15 @@
   }
   const cost=(s,k)=>4+s.facility[k]*3;
   function upgrade(s,k){
-    if(![0,1,2].includes(k)||s.points<cost(s,k))return false;
+    if(!Number.isInteger(k)||k<0||k>=facilityNames.length||s.points<cost(s,k))return false;
     s.points-=cost(s,k);s.facility[k]++;
-    addLog(s,['練習設備','スカウト網','育成研究室'][k]+'を強化','施設 Lv.'+s.facility[k]);return true;
+    addLog(s,facilityNames[k]+'を強化','施設 Lv.'+s.facility[k]);return true;
   }
   function setChallenge(s,n){
-    if(s.day>=11||s.phase!=='practice'||!Number.isInteger(n)||n<0||n>Math.max(s.record,s.year>=3?1:0))return false;
+    if(s.day>=Y.events.summer||s.phase!=='practice'||!Number.isInteger(n)||n<0||n>Math.max(s.record,s.year>=3?1:0))return false;
     s.challenge=n;return true;
   }
-  const api={D,potential,limitBonus,scoutProfile,distance,outlook,skillName,lockDeck,expandHand,campTrain,teach,skillOdds,trainingTarget,matchName,lastRound,calendar,date,tileNames,landing,flip,enroll,migrate,visitAction,price,friendlyOdds,labels,policies,styles,traits,combos,comboPairs,synergy,pos,rounds,dates,situations,training,initial,cap,gain,strength,power,setFocus,practice,choose,acknowledge,odds,play,exitMatch,graduate,recruit,cost,upgrade,setChallenge};
+  const api={D,Y,statNames,facilityNames,autoPractice,setIndividual,growthHint,potential,limitBonus,scoutProfile,distance,outlook,skillName,lockDeck,expandHand,campTrain,teach,skillOdds,trainingTarget,matchName,lastRound,calendar,date,tileNames,landing,flip,enroll,migrate,visitAction,price,friendlyOdds,labels,policies,styles,traits,combos,comboPairs,synergy,pos,rounds,dates,situations,training,initial,cap,gain,strength,power,setFocus,practice,choose,acknowledge,odds,play,exitMatch,graduate,recruit,cost,upgrade,setChallenge};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else globalThis.DiamondGame=api;
 })();

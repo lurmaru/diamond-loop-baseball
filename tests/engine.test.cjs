@@ -23,7 +23,8 @@ test('independent campaigns are reproducible and retain nine positions',()=>{
 test('training honors the cap and a pending reward consumes exactly one turn',()=>{
   const s=school(4);
   s.cards[0]={...s.cards[0],k:0,steps:3,tier:0,name:'打撃練習'};
-  s.roster.forEach(p=>p.stats[0]=G.cap(s,p)-1);
+  s.day=G.Y.events.policy-3;
+  s.roster.forEach(p=>{p.stats[0]=G.cap(s,p)-1;p.xp[0]=100;});
   assert.ok(G.practice(s,0));
   assert.deepEqual(s.roster.map(p=>p.stats[0]),s.roster.map(p=>G.cap(s,p)));
   assert.equal(G.practice(s,0),false);
@@ -48,7 +49,8 @@ test('the focused player receives extra practice',()=>{
   s.roster.forEach(p=>{p.genius=false;p.stats[2]=20;});
   assert.ok(G.setFocus(s,s.roster[8].id));
   s.cards[2].k=2;const steps=G.distance(s,s.cards[2]);assert.ok(G.practice(s,2));
-  assert.ok(s.roster[8].stats[2]>=s.roster[0].stats[2]+steps);
+  const units=p=>120*p.stats[2]+p.xp[2];
+  assert.ok(units(s.roster[8])>=units(s.roster[0])+10*steps);
 });
 test('targeted special abilities unlock a team combination',()=>{
   const s=school(12);
@@ -88,5 +90,5 @@ test('challenge can be changed before the tournament only, within unlocked level
   assert.equal(G.setChallenge(s,1),false);
   s.year=3;assert.ok(G.setChallenge(s,1));assert.equal(G.setChallenge(s,2),false);
   s.record=3;assert.ok(G.setChallenge(s,3));
-  s.day=11;assert.equal(G.setChallenge(s,0),false);
+  s.day=G.Y.events.summer;assert.equal(G.setChallenge(s,0),false);
 });

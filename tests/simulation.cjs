@@ -14,11 +14,11 @@ function campaign(seed, years, guided, challenge, audit=false, movement) {
   };
   sign();
   for (let year=1;year<=years;year++) {
-    const previous=s.titles;
+    const previous=s.titles,rookies=s.roster.filter(p=>p.grade===1);
     let guard=0,practices=0,visits=0,lastVisitDay=-1;
     if(challenge && year>=3) G.setChallenge(s,Math.max(1,s.record));
     while(s.year===year || s.phase==='intake') {
-      assert.ok(++guard<250);
+      assert.ok(++guard<1400);
       if(audit) s=JSON.parse(JSON.stringify(s));
       if(audit && !['intake','build'].includes(s.phase))assert.deepEqual([...s.pile,...s.discard,...s.cards.map(c=>c.id)].sort((a,b)=>a-b),s.deck.slice().sort((a,b)=>a-b));
       if(s.report){assert.ok(G.acknowledge(s));continue;}
@@ -76,23 +76,23 @@ function campaign(seed, years, guided, challenge, audit=false, movement) {
     assert.equal(s.year,year+1);
     assert.ok(s.cash>=0 && s.drills.every(n=>n===0));
     assert.ok(s.points>=0 && s.logs.length<=36);
-    history.push({practices,visits,title:s.titles>previous,lv:s.challenge,power:G.power(s)});
+    history.push({practices,visits,rookies:rookies.length,high:rookies.filter(p=>['A','S','SS','Z'].includes(p.rank)).length,meanSkill:s.roster.filter(p=>p.grade>1).flatMap(p=>p.stats).reduce((a,b)=>a+b,0)/Math.max(1,9*s.roster.filter(p=>p.grade>1).length),title:s.titles>previous,lv:s.challenge,power:G.power(s)});
   }
   return history;
 }
-const runs=Number(process.argv[2]||1200),years=12;
+const runs=Number(process.argv[2]||1200),years=Number(process.argv[3]||12);
 for(const [name,guided,challenge] of [['random',false,false],['guided',true,false],['challenge',true,true]]){
-  const titles=Array(years).fill(0),power=Array(years).fill(0),lv=Array(years).fill(0);
+  const titles=Array(years).fill(0),power=Array(years).fill(0),lv=Array(years).fill(0),high=Array(years).fill(0),rookies=Array(years).fill(0);
   for(let i=0;i<runs;i++){
     const history=campaign((i+1)*971,years,guided,challenge,i===0);
-    history.forEach((h,j)=>{titles[j]+=h.title;power[j]+=h.power;lv[j]+=h.lv;});
+    history.forEach((h,j)=>{titles[j]+=h.title;power[j]+=h.power;lv[j]+=h.lv;high[j]+=h.high;rookies[j]+=h.rookies;});
   }
-  const summary=[0,2,5,11].map(j=>({year:j+1,titlePct:+(100*titles[j]/runs).toFixed(1),afterRecruitPower:+(power[j]/runs).toFixed(1),league:+(lv[j]/runs).toFixed(1)}));
+  const summary=[...new Set([0,2,5,11,years-1])].filter(j=>j<years).map(j=>({year:j+1,AorHigherPct:+(100*high[j]/rookies[j]).toFixed(1),titlePct:+(100*titles[j]/runs).toFixed(1),afterRecruitPower:+(power[j]/runs).toFixed(1),league:+(lv[j]/runs).toFixed(1)}));
   console.log(name,JSON.stringify(summary));
 }
 console.log('Validated',runs*years*3,'seasons');
 for(const movement of ['short','long']){
-  const totals={title:0,practices:0,visits:0,power:0};
+  const totals={title:0,practices:0,visits:0,power:0,meanSkill:0};
   for(let i=1;i<=runs;i++){
     const [year]=campaign(i*971,1,true,false,false,movement);
     for(const k of Object.keys(totals))totals[k]+=Number(year[k]);

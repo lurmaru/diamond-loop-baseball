@@ -16,7 +16,7 @@ function school(seed,width,hand){
   if(hand===5){s.phase='shop';assert.ok(G.expandHand(s));s.phase='practice';}
   let camps=0,batteryReady=0,steps=0;
   while(s.year<=3){
-    assert.ok(++steps<400);
+    assert.ok(++steps<3000);
     if(s.report){G.acknowledge(s);continue;}
     switch(s.phase){
       case 'practice':{
