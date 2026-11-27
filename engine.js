@@ -27,7 +27,16 @@
   }
   const int = (s,n) => Math.floor(random(s)*n);
   const pick = (s,a) => a[int(s,a.length)];
-  const cap = s => 70 + 4*s.facility[2] + (s.manuals||0);
+  const potential={C:58,B:86,A:122,S:174,SS:250,Z:Infinity};
+  const limitBonus=s=>4*s.facility[2]+(s.manuals||0);
+  const cap=(s,p)=>Math.max(potential[p.rank],p.legacyBase||0)+limitBonus(s);
+  function scoutProfile(s){
+    const experience=(s.year-1)/18+s.wins/110+s.facility[1]/10;
+    return {
+      secondLook:0.88*(1-Math.exp(-experience)),
+      startingBonus:Math.floor(4*Math.log2(1+experience))+2*s.facility[1]
+    };
+  }
   const styles=['基礎の徹底','個別指導','実戦主義'];
   const combos=['投打の柱','黄金バッテリー','攻守一体'];
   const comboPairs=[[0,1],[1,2],[2,0]];
@@ -36,7 +45,10 @@
     s.logs.length = Math.min(36,s.logs.length);
   }
   function player(s, slot, grade, fresh=false) {
-    const roll=s.rumor===slot?Math.min(random(s),random(s)):random(s);
+    const scout=scoutProfile(s);
+    let roll=random(s);
+    if(scout.secondLook>0 && random(s)<scout.secondLook)roll=Math.min(roll,random(s));
+    if(s.rumor===slot)roll=Math.min(roll,random(s));
     const rank=roll<0.005?'Z':roll<0.025?'SS':roll<0.09?'S':roll<0.25?'A':roll<0.57?'B':'C';
     const genius=['S','SS','Z'].includes(rank);
     const bonus={C:0,B:2,A:5,S:8,SS:12,Z:16}[rank];
@@ -44,7 +56,7 @@
       stats:[],traits:[0,0,0]};
     for(let k=0;k<3;k++){
       const aptitude = k===(slot===0?1:slot%3)?6:0;
-      p.stats.push(Math.min(cap(s),22+int(s,12)+aptitude+grade*2+bonus+s.facility[1]*2));
+      p.stats.push(Math.min(cap(s,p),22+int(s,12)+aptitude+grade*2+bonus+scout.startingBonus));
     }
     if (genius || (fresh && random(s)<0.2)) p.traits[int(s,3)]=1;
     return p;
@@ -91,7 +103,7 @@
   function campTrain(s,index){
     if(s.phase!=='camp'||s.report||!s.cards[index])return false;
     const c=s.cards[index],p=trainingTarget(s,c);
-    p.stats[c.k]=Math.min(cap(s),p.stats[c.k]+2);
+    p.stats[c.k]=Math.min(cap(s,p),p.stats[c.k]+2);
     skillRoll(s,c,true);D.spend(s,index,()=>random(s));
     if(s.evolutionYear!==s.year&&random(s)<0.25&&s.library.some(v=>!v.evolved&&v.effect!=='chain')){
       s.phase='evolve';s.evolutionYear=s.year;
@@ -112,7 +124,7 @@
     updateCard(s,c);s.phase='practice';return true;
   }
   function initial(seed=Date.now()){
-    const s={version:3,rng:seed>>>0,year:1,week:0,phase:'intake',nextId:1,
+    const s={version:4,rng:seed>>>0,year:1,week:0,phase:'intake',nextId:1,
       roster:[],cards:[],points:0,facility:[0,0,0],mastery:[0,0,0],policy:-1,
       focus:null,logs:[],titles:0,wins:0,games:0,best:0,challenge:0,record:0,
       match:null,options:[],report:null,graduates:[],heir:null,yearWins:0,skillPool:[],style:-1,manuals:0,cash:12};
@@ -142,9 +154,13 @@
     if(s.heir)lead.traits[s.heir.k]+=s.heir.level;
     s.focus=id;s.roster.push(...s.pack);s.roster.sort((a,b)=>a.slot-b.slot);
     addLog(s,s.pack.length+'人が入部',lead.name+'を重点育成。'+(s.heir?s.heir.name+'の「'+traits[s.heir.k]+'」を継承。':''),'spring');
-    s.pack=[];s.heir=null;s.rumor=null;D.begin(s,'spring');return true;
+    s.pack=[];s.heir=null;s.rumor=null;
+    if(s.year===1){
+      D.reset(s,()=>random(s));s.phase='practice';
+    }else D.begin(s,'spring');
+    return true;
   }
-  function migrate(s){
+  function migrateDeck(s){
     if(s.version===3)return s;
     if(s.version===1){
       for(const p of [...s.roster,...(s.phase==='recruit'?s.options:[])]){
@@ -165,6 +181,17 @@
     if(s.phase==='match')s.match.competition='summer';
     s.version=3;return s;
   }
+  function migrate(s){
+    if(s.version===4)return s;
+    migrateDeck(s);
+    const players=[...s.roster,...(s.pack||[]),...(s.phase==='recruit'?s.options:[])];
+    for(const p of players){
+      const previous=Math.max(...p.stats);
+      if(previous>cap(s,p))p.legacyBase=previous-limitBonus(s);
+    }
+    // Keep an existing, unfinished build exactly as the returning coach left it.
+    s.version=4;return s;
+  }
   function strength(s,k){
     if(!s.roster.length)return 0;
     const vals=s.roster.map(p=>p.stats[k]+3*p.traits[k]).sort((a,b)=>b-a);
@@ -178,31 +205,45 @@
     const ranks=comboPairs[k].map(a=>s.roster.reduce((sum,p)=>sum+p.traits[a],0));
     return {ranks,active:ranks.every(v=>v>=2)};
   }
-  const gain=(s,c)=>1+(s.day<11?Math.min(2,landing(s,c)-s.day):0)+c.tier+(c.mentor?1:0)+((c.evolved||c.effect==='chain')&&s.lastKind===(c.k+2)%3?2:0)+s.drills[c.k]+Math.floor(s.facility[0]/2)+(s.policy===c.k?1+Math.floor(Math.sqrt(s.mastery[c.k])/2):0);
+  const distance=(s,c)=>landing(s,c)-s.day;
+  function gain(s,c){
+    const coaching=s.policy===c.k?1+Math.floor(Math.sqrt(s.mastery[c.k])/2):0;
+    const daily=2+c.tier+s.drills[c.k]+Math.floor(s.facility[0]/2)+coaching;
+    const chain=(c.evolved||c.effect==='chain')&&s.lastKind===(c.k+2)%3?2:0;
+    return distance(s,c)*daily+(c.mentor?1:0)+chain;
+  }
+  function outlook(chance){
+    if(chance>=0.69)return '有利';
+    if(chance>=0.44)return 'いけそう';
+    if(chance>=0.30)return '慎重に';
+    return '厳しい';
+  }
   function setFocus(s,id){
     if(!s.roster.some(p=>p.id===id))return false;
     s.focus=id;return true;
   }
   function practice(s,index){
     if(s.phase!=='practice'||s.report||!s.cards[index])return false;
-    const c=s.cards[index],k=c.k,g=gain(s,c), lead=s.roster.find(p=>p.id===s.focus)||s.roster[0];
+    const c=s.cards[index],k=c.k,g=gain(s,c),steps=distance(s,c),lead=s.roster.find(p=>p.id===s.focus)||s.roster[0];
     let total=0;
     for(const p of s.roster){
       const old=p.stats[k];
-      const extra=2+(c.effect==='focus'?2:0)+s.facility[0]%2+(s.policy===k&&s.style===1?3:0);
-      p.stats[k]=Math.min(cap(s),old+g+(p.id===lead.id?extra:0)+(p.genius?1:0));
+      const extra=steps*(1+s.facility[0]%2)+(c.effect==='focus'?2:0)+(s.policy===k&&s.style===1?3:0);
+      p.stats[k]=Math.min(cap(s,p),old+g+(p.id===lead.id?extra:0)+(p.genius?steps:0));
       total+=p.stats[k]-old;
     }
     if(c.effect==='pair'){
       const partner=trainingTarget(s,c),other=k===1?2:k;
-      partner.stats[other]=Math.min(cap(s),partner.stats[other]+2);
+      partner.stats[other]=Math.min(cap(s,partner),partner.stats[other]+2);
     }
-    const awake=random(s)<(0.055+0.045*c.tier+(lead.genius?0.035:0)+(s.policy===k&&s.style===0?0.12:0));
-    if(awake){ lead.stats[k]=Math.min(cap(s),lead.stats[k]+4); }
+    const dailyAwake=0.032+0.022*c.tier+(lead.genius?0.017:0)+(s.policy===k&&s.style===0?0.06:0);
+    const awake=random(s)<1-(1-dailyAwake)**steps;
+    const awakeningGain=awake?Math.min(4,cap(s,lead)-lead.stats[k]):0;
+    lead.stats[k]+=awakeningGain;
     const target=landing(s,c),income=target-s.day;
     s.cash+=income;s.day=target;s.week++;
-    s.report={type:awake?'awake':'practice',title:awake?lead.name+' が覚醒！':c.name+' 完了',
-      detail:awake?labels[k]+'能力がさらに +4。':labels[k]+'の合計成長 +'+total+'。重点選手は '+lead.name+'。',
+    s.report={type:awakeningGain?'awake':'practice',title:awakeningGain?lead.name+' が覚醒！':c.name+' 完了',
+      detail:awakeningGain?labels[k]+'能力がさらに +'+awakeningGain+'。':labels[k]+'の合計成長 +'+total+'。重点選手は '+lead.name+'。',
       k,tier:c.tier};
     if(!awake && random(s)<0.017){
       s.manuals=(s.manuals||0)+1;s.points+=2;
@@ -212,8 +253,9 @@
     const tile=s.tiles[s.day];
     let outcome='部費 +'+income+'G';
     if(tile==='good'){
-      s.cash+=4;lead.stats[k]=Math.min(cap(s),lead.stats[k]+2);
-      outcome+=' ／ 好調！重点選手 +2、部費 +4G';
+      const bonus=Math.min(2,cap(s,lead)-lead.stats[k]);
+      s.cash+=4;lead.stats[k]+=bonus;
+      outcome+=' ／ 好調！'+(bonus?'重点選手 +'+bonus+'、':'')+'部費 +4G';
     }else if(tile==='bad'){
       const repair=Math.min(4,s.cash);s.cash-=repair;outcome+=' ／ 用具修理 −'+repair+'G';
     }
@@ -278,7 +320,7 @@
     if(s.report||![0,1,2].includes(k))return false;
     if(s.phase==='policy'){
       s.policy=k;s.style=s.options[k].style;s.mastery[k]++;
-      for(const p of s.roster)p.stats[k]=Math.min(cap(s),p.stats[k]+s.options[k].bonus);
+      for(const p of s.roster)p.stats[k]=Math.min(cap(s,p),p.stats[k]+s.options[k].bonus);
       addLog(s,policies[k]+'を採用',labels[k]+'の練習に相乗効果。指導経験が残る。');
     }else if(s.phase==='skill'){
       const o=s.skillPool[k],p=s.roster.find(p=>p.id===o.id);
@@ -292,7 +334,7 @@
     const rivals=schools.filter(n=>!s.rivals?.includes(n));
     const opp=pick(s,rivals.length?rivals:schools);
     s.rivals=round===0?[opp]:[...(s.rivals||[]),opp];
-    s.match={round,opp,competition,level:(competition==='summer'?44+round*7:competition==='autumn'?52:62+round*5)+8*s.challenge,
+    s.match={round,opp,competition,level:(competition==='summer'?44+round*11:competition==='autumn'?57:68+round*10)+8*s.challenge,
       us:0,them:0,step:0,scene:int(s,3),plays:[],finished:false};
   }
   const matchName=m=>m.competition==='autumn'?'秋季予選 決勝':m.competition==='spring'?['春の本戦 準決勝','春の本戦 決勝'][m.round]:rounds[m.round];
@@ -390,7 +432,7 @@
     if(s.day>=11||s.phase!=='practice'||!Number.isInteger(n)||n<0||n>Math.max(s.record,s.year>=3?1:0))return false;
     s.challenge=n;return true;
   }
-  const api={D,skillName,lockDeck,expandHand,campTrain,teach,skillOdds,trainingTarget,matchName,lastRound,calendar,date,tileNames,landing,flip,enroll,migrate,visitAction,price,friendlyOdds,labels,policies,styles,traits,combos,comboPairs,synergy,pos,rounds,dates,situations,training,initial,cap,gain,strength,power,setFocus,practice,choose,acknowledge,odds,play,exitMatch,graduate,recruit,cost,upgrade,setChallenge};
+  const api={D,potential,limitBonus,scoutProfile,distance,outlook,skillName,lockDeck,expandHand,campTrain,teach,skillOdds,trainingTarget,matchName,lastRound,calendar,date,tileNames,landing,flip,enroll,migrate,visitAction,price,friendlyOdds,labels,policies,styles,traits,combos,comboPairs,synergy,pos,rounds,dates,situations,training,initial,cap,gain,strength,power,setFocus,practice,choose,acknowledge,odds,play,exitMatch,graduate,recruit,cost,upgrade,setChallenge};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else globalThis.DiamondGame=api;
 })();

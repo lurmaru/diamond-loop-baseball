@@ -3,18 +3,19 @@ const G = require('../engine.js');
 const best = scores => scores.indexOf(Math.max(...scores));
 const sample = (s, salt) => ((s.rng >>> 8) + salt) % 3;
 
-function campaign(seed, years, guided, challenge, audit=false) {
+function campaign(seed, years, guided, challenge, audit=false, movement) {
   let s=G.initial(seed);
   const history=[];
   const sign=()=>{
     while(G.flip(s)){}
     const i=best(s.pack.map(p=>p.stats.reduce((a,b)=>a+b)+8*p.genius));
-    assert.ok(G.enroll(s,s.pack[i].id));assert.ok(G.lockDeck(s));
+    assert.ok(G.enroll(s,s.pack[i].id));
+    if(s.year===1)assert.equal(s.phase,'practice');else assert.ok(G.lockDeck(s));
   };
   sign();
   for (let year=1;year<=years;year++) {
     const previous=s.titles;
-    let guard=0;
+    let guard=0,practices=0,visits=0,lastVisitDay=-1;
     if(challenge && year>=3) G.setChallenge(s,Math.max(1,s.record));
     while(s.year===year || s.phase==='intake') {
       assert.ok(++guard<250);
@@ -22,6 +23,9 @@ function campaign(seed, years, guided, challenge, audit=false) {
       if(audit && !['intake','build'].includes(s.phase))assert.deepEqual([...s.pile,...s.discard,...s.cards.map(c=>c.id)].sort((a,b)=>a-b),s.deck.slice().sort((a,b)=>a-b));
       if(s.report){assert.ok(G.acknowledge(s));continue;}
       const random=sample(s,guard);
+      if(['shop','friendly','event'].includes(s.phase)&&s.day!==lastVisitDay){
+        visits++;lastVisitDay=s.day;
+      }
       switch(s.phase) {
         case 'build':{
           if(s.library.length>s.draft.length&&s.draft.length<16){
@@ -36,7 +40,13 @@ function campaign(seed, years, guided, challenge, audit=false) {
         }
         case 'camp':assert.ok(G.campTrain(s,guided?best(s.cards.map(c=>G.skillOdds(s,c,true))):random));break;
         case 'practice': {
-          const k=guided?best(s.cards.map(c=>G.gain(s,c)+(s.policy===c.k?1:0))):random;
+          const priorities=s.cards.map(c=>{
+            const gain=G.gain(s,c)+(s.policy===c.k?1:0);
+            const steps=movement?G.distance(s,c)*(movement==='short'?-100:100):0;
+            return gain+steps;
+          });
+          const k=guided?best(priorities):random;
+          practices++;
           assert.ok(G.practice(s,k));break;
         }
         case 'policy':assert.ok(G.choose(s,guided?best(s.options.map(o=>o.bonus+(o.k===1?1.5:0))):random));break;
@@ -62,11 +72,11 @@ function campaign(seed, years, guided, challenge, audit=false) {
     assert.ok(s.roster.length>=9 && s.roster.length<=18);
     assert.equal(new Set(s.roster.map(p=>p.id)).size,s.roster.length);
     assert.equal(new Set(s.roster.map(p=>p.slot)).size,9);
-    assert.ok(s.roster.every(p=>p.stats.every(v=>Number.isFinite(v)&&v<=G.cap(s))));
+    assert.ok(s.roster.every(p=>p.stats.every(v=>Number.isFinite(v)&&v<=G.cap(s,p))));
     assert.equal(s.year,year+1);
     assert.ok(s.cash>=0 && s.drills.every(n=>n===0));
     assert.ok(s.points>=0 && s.logs.length<=36);
-    history.push({title:s.titles>previous,lv:s.challenge,power:G.power(s)});
+    history.push({practices,visits,title:s.titles>previous,lv:s.challenge,power:G.power(s)});
   }
   return history;
 }
@@ -81,3 +91,13 @@ for(const [name,guided,challenge] of [['random',false,false],['guided',true,fals
   console.log(name,JSON.stringify(summary));
 }
 console.log('Validated',runs*years*3,'seasons');
+for(const movement of ['short','long']){
+  const totals={title:0,practices:0,visits:0,power:0};
+  for(let i=1;i<=runs;i++){
+    const [year]=campaign(i*971,1,true,false,false,movement);
+    for(const k of Object.keys(totals))totals[k]+=Number(year[k]);
+  }
+  console.log('First year',movement,JSON.stringify(Object.fromEntries(Object.entries(totals).map(([k,n])=>[k,+(n/runs).toFixed(3)]))));
+}
+const dynasty=campaign(13371337,100,true,true,true);
+console.log('100-year school',JSON.stringify(dynasty.at(-1)));

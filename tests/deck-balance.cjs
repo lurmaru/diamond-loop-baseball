@@ -9,6 +9,8 @@ function school(seed,width,hand){
   while(G.flip(s)){}
   G.enroll(s,s.pack[0].id);G.D.acquire(s,15);
   const founders=new Set(s.roster.map(p=>p.id)),learned=new Set();
+  // Controlled experiment: open an editing window for all three test cohorts.
+  G.D.begin(s,'summer');
   s.draft=width===16?s.library.map(c=>c.id):[...s.draft.slice(0,11),13];
   G.lockDeck(s);s.cash+=24;
   if(hand===5){s.phase='shop';assert.ok(G.expandHand(s));s.phase='practice';}

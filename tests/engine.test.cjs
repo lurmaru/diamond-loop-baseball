@@ -6,7 +6,7 @@ function school(seed){
   const s=G.initial(seed);
   while(G.flip(s)){}
   assert.ok(G.enroll(s,s.pack[0].id));
-  assert.ok(G.lockDeck(s));return s;
+  assert.equal(s.phase,'practice');return s;
 }
 test('independent campaigns are reproducible and retain nine positions',()=>{
   const a=G.initial(971),b=G.initial(971);
@@ -23,9 +23,9 @@ test('independent campaigns are reproducible and retain nine positions',()=>{
 test('training honors the cap and a pending reward consumes exactly one turn',()=>{
   const s=school(4);
   s.cards[0]={...s.cards[0],k:0,steps:3,tier:0,name:'打撃練習'};
-  s.roster.forEach(p=>p.stats[0]=G.cap(s)-1);
+  s.roster.forEach(p=>p.stats[0]=G.cap(s,p)-1);
   assert.ok(G.practice(s,0));
-  assert.deepEqual(s.roster.map(p=>p.stats[0]),Array(9).fill(G.cap(s)));
+  assert.deepEqual(s.roster.map(p=>p.stats[0]),s.roster.map(p=>G.cap(s,p)));
   assert.equal(G.practice(s,0),false);
   assert.equal(G.choose(s,1),false);
   assert.equal(s.week,1);
@@ -40,15 +40,15 @@ test('facilities charge exact costs and respect available points',()=>{
   s.points=4;
   assert.ok(G.upgrade(s,2));
   assert.equal(s.points,0);
-  assert.equal(G.cap(s),74);
+  assert.equal(G.limitBonus(s),4);
   assert.equal(G.cost(s,2),7);
 });
 test('the focused player receives extra practice',()=>{
   const s=school(77);
   s.roster.forEach(p=>{p.genius=false;p.stats[2]=20;});
   assert.ok(G.setFocus(s,s.roster[8].id));
-  s.cards[2].k=2;assert.ok(G.practice(s,2));
-  assert.ok(s.roster[8].stats[2]>=s.roster[0].stats[2]+2);
+  s.cards[2].k=2;const steps=G.distance(s,s.cards[2]);assert.ok(G.practice(s,2));
+  assert.ok(s.roster[8].stats[2]>=s.roster[0].stats[2]+steps);
 });
 test('targeted special abilities unlock a team combination',()=>{
   const s=school(12);

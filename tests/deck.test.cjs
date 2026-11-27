@@ -6,10 +6,11 @@ function enrolled(seed=443){
   const s=G.initial(seed);while(G.flip(s)){}
   G.enroll(s,s.pack[0].id);return s;
 }
-function playing(seed){const s=enrolled(seed);G.lockDeck(s);return s;}
+const playing=enrolled;
 const ids=s=>[...s.cards.map(c=>c.id),...s.pile,...s.discard].sort((a,b)=>a-b);
 test('spring edit persists, rejects an undersized deck and cannot reopen during practice',()=>{
-  let s=enrolled();assert.equal(s.phase,'build');
+  let s=enrolled();s.phase='graduate';assert.ok(G.graduate(s));
+  while(G.flip(s)){}G.enroll(s,s.pack[0].id);assert.equal(s.phase,'build');
   assert.ok(D.toggle(s,0));assert.equal(G.lockDeck(s),false);
   s=JSON.parse(JSON.stringify(s));assert.ok(D.toggle(s,13));assert.ok(G.lockDeck(s));
   assert.equal(s.cards.length,4);assert.equal(D.toggle(s,13),false);

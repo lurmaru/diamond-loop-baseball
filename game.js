@@ -23,12 +23,11 @@
   };
   const ico=(k)=>`<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${paths[k]||paths.diamond}</svg>`;
   const filenames=['batting','pitching','fielding'];
-  const tones=['var(--gold)','var(--cyan)','var(--mint)'];
+  const tones=['#b44931','#35608a','#36725b'];
   const acts=['bat','ball','glove'];
-  const rarity=['N','R','SR'];
   const tabs=[['home','育成ホーム'],['team','選手名鑑'],['flag','強化施設'],['book','部誌']];
   const facilityNames=['練習設備','スカウト網','育成研究室'];
-  const versionOK=v=>v && [1,2,3].includes(v.version) && Array.isArray(v.roster) && Array.isArray(v.logs)&&Array.isArray(v.facility) && Number.isInteger(v.rng) && ['practice','match','graduate','recruit','skill','policy','intake','shop','event','friendly','prize','build','camp','evolve','mentor'].includes(v.phase);
+  const versionOK=v=>v && [1,2,3,4].includes(v.version) && Array.isArray(v.roster) && Array.isArray(v.logs)&&Array.isArray(v.facility) && Number.isInteger(v.rng) && ['practice','match','graduate','recruit','skill','policy','intake','shop','event','friendly','prize','build','camp','evolve','mentor'].includes(v.phase);
   let state,warning='',sound=false,context,tab='home',timer,dialogKind='';
   try{const raw=localStorage.getItem(KEY);if(raw){state=JSON.parse(raw);if(!versionOK(state))throw Error();state=G.migrate(state);}sound=localStorage.getItem(PREF)==='on';}
   catch{warning='保存データを読み込めませんでした。';state=null;}
@@ -46,16 +45,22 @@
   const button=(act,n,title,cls='choice',disabled=false)=>`<button class="${cls}" data-act="${act}" data-n="${n}" ${disabled?'disabled':''}>${title}</button>`;
   const description=(name,desc,end='')=>`<span><strong>${name}</strong><small>${desc}</small></span>${end?'<b>'+end+'</b>':''}`;
   const focused=()=>state.roster.find(p=>p.id===state.focus)||state.roster[0];
-  const styleText=['方針に合う練習で覚醒率 +12ポイント、特能習得率 +5ポイント','方針に合う練習で重点選手の成長 +3','方針に合う采配で試合評価をさらに +3'];
+  const styleText=['方針に合う練習で1マスあたりの覚醒率 +6ポイント、特能習得率 +5ポイント','方針に合う練習で重点選手の成長 +3','方針に合う采配で試合評価をさらに +3'];
   const season=()=>state.day>=33||state.phase==='graduate'?'春':state.day<6?'春':state.day<11?'初夏':state.day<15?'夏':state.day<24?'秋':'冬';
   function hero(){
     const s=state,date=G.date(s.day);
     const deadline=s.day<11?[11,'夏の大会']:s.day<18?[18,'秋予選']:s.qualified&&s.day<33?[33,'春本戦']:[35,'年度末'];
     const next=s.phase==='match'?G.matchName(s.match):deadline[1]+'まで <strong>あと'+(deadline[0]-s.day)+'マス</strong>';
-    return `<section class="hero" aria-label="シーズン情報"><div class="hero-inner"><span class="season">${ico('flag')} ${s.year}年目</span><h1>青葉高校 野球部</h1><p class="hero-date">${ico('calendar')}${date}<i></i>${season()}の${s.phase==='match'?'大会':s.phase==='graduate'?'卒業式':'育成'}</p><p class="goal-line">${ico('trophy')}${next}</p></div><span class="hero-weather">${ico('sun')}晴れ</span></section>`;
+    const name=tabs.find(t=>t[0]===tab)?.[1]||'監督室';
+    return `<section class="hero ${tab==='home'?'field-cover':'chapter-cover'}"><div><p class="kicker">AOBA BASEBALL CLUB</p><h1>${tab==='home'?'青葉高校 野球部':name}</h1><div class="issue"><b>${s.year}年目</b><span>${ico('calendar')} ${date}</span><span>${season()}</span></div></div><p class="goal-line">${ico('trophy')} ${next}</p></section>`;
   }
   const head=(ic,title,en,chip='')=>`<div class="sectionhead"><div class="heading-icon">${ico(ic)}</div><div><div class="eyebrow">${en}</div><h2>${title}</h2></div>${chip?`<span class="step">${chip}</span>`:''}</div>`;
-  function bar(k,v){return `<div class="statrow"><span>${G.labels[k]}</span><div class="track"><i style="width:${Math.min(100,100*v/G.cap(state))}%;background:${tones[k]}"></i></div><b>${v}</b></div>`;}
+  const capText=p=>Number.isFinite(G.cap(state,p))?String(G.cap(state,p)):'∞';
+  function bar(k,v,p){
+    const limit=p?G.cap(state,p):100;
+    const scale=Number.isFinite(limit)?Math.max(limit,v):Math.max(100,Math.ceil(v/100)*100);
+    return `<div class="statrow"><span>${G.labels[k]}</span><div class="track"><i style="width:${Math.min(100,100*v/scale)}%;background:${tones[k]}"></i></div><b>${v}</b></div>`;
+  }
   function logs(list){return `<ul class="journal">${list.map(l=>`<li><i></i><div><span class="yr">${l.year}年目</span><strong>${l.title}</strong><small>${l.detail}</small></div></li>`).join('')}</ul>`;}
   function aside(){
     const active=G.combos.filter((_,k)=>G.synergy(state,k).active).length;
@@ -74,12 +79,14 @@
   function intake(){
     const s=state,total=s.pack.length,n=s.drawn,done=n===total;
     const p=n?s.pack[n-1]:null;
-    const front=p?`<div class="collectible rank-${p.rank}" aria-live="polite"><div class="face-window">${portrait(p)}<b class="grade">${p.rank}</b></div><small>${G.pos[p.slot]} ／ 1年</small><strong>${p.name}</strong><div class="scout-stats">${p.stats.map((v,k)=>`<span>${G.labels[k]}<b>${v}</b></span>`).join('')}</div></div>`:`<div class="collectible card-back"><div class="back-line"><img src="./assets/ball.svg" alt=""><b>DIAMOND<br>LOOP</b><span>BASEBALL CLUB</span></div></div>`;
+    const front=p?`<div class="collectible rank-${p.rank}" aria-live="polite"><div class="face-window">${portrait(p)}<b class="grade">${p.rank}</b></div><small>${G.pos[p.slot]} ／ 1年${p.genius?'・天才':''}</small><strong>${p.name}</strong><div class="scout-stats">${p.stats.map((v,k)=>`<span>${G.labels[k]}<b>${v}</b></span>`).join('')}</div></div>`:`<div class="collectible card-back"><div class="back-line"><img src="./assets/ball.svg" alt=""><b>DIAMOND<br>LOOP</b><span>BASEBALL CLUB</span></div></div>`;
     const nextRank=s.pack[n]?.rank;
     const lucky=nextRank==='Z'?'虹色のきらめき……':nextRank==='SS'?'金色のきらめき……':'';
-    const cta=done?'重点選手を選ぼう':n?'次のカードをめくる':'1枚目をめくる';
-    return `<section class="intake"><div class="intake-content"><div class="intake-copy"><span class="season">${ico('flag')} ${s.year}年目 ・ 4月 入学式</span><p class="intake-en">SPRING SCOUT</p><h1>新入生スカウト</h1><p>青葉高校に${total}人の新入生が到着。${s.rumor!=null?G.pos[s.rumor]+'の逸材に期待。':''}<br>選手カードをめくって、顔ぶれを確かめよう。</p><div class="rank-key" aria-label="選手ランク">${['C','B','A','S','SS','Z'].map(r=>`<b class="rank-${r}">${r}</b>`).join('')}</div></div><div class="draw-stage">${done?front:`<button class="flip-surface" data-act="flip" aria-label="選手カードをめくる">${front}</button>`}<div class="draw-count">${String(n).padStart(2,'0')} <span>/ ${String(total).padStart(2,'0')}</span></div>${done?button('pickFocus',0,cta,'primary'):button('flip',0,(lucky?lucky+'<br>':'')+cta,'primary'+(lucky?' lucky':''))}</div></div>
-    <div class="intake-list"><div class="itemrow"><h2>${done?'タップして重点育成に指定':'入部名簿'}</h2><span>${n} / ${total} 人</span></div>${done&&s.heir?`<p>${s.heir.name}から「${G.traits[s.heir.k]}」を継承します。</p>`:''}<div class="rookies">${s.pack.map((v,i)=>i<n?button('enroll',v.id,`${portrait(v)}<span><b>${v.rank} ・ ${G.pos[v.slot]}</b><strong>${v.name}</strong></span>`,'rookie rank-'+v.rank,!done):`<div class="rookie sealed">${String(i+1).padStart(2,'0')}<span>未開封</span></div>`).join('')}</div></div></section>`;
+    const cta=done?'名簿から重点選手を選ぶ':n?'次のカードをめくる':'1枚目をめくる';
+    return `<section class="intake"><div class="recruit-cover"><div><p class="kicker">SPRING SCOUT</p><h1>春の入部届</h1><p>青葉高校 野球部　／　${s.year}年目・4月</p></div></div>
+    <div class="intake-columns"><section class="draw-panel"><div class="draw-label"><span>${ico('cards')} 新入生スカウト</span><b>${n} <small>/ ${total}</small></b></div><div class="draw-stage">${done?front:`<button class="flip-surface" data-act="flip" aria-label="選手カードをめくる">${front}</button>`}<div class="draw-action"><h2>${p?p.name:'新入生が到着'}</h2><p>${p?G.pos[p.slot]+' ・ ランク '+p.rank+' ／ 成長上限 '+capText(p):total+'人の入部届を、1枚ずつ開封しよう。'}</p>${done?button('pickFocus',0,cta,'primary'):button('flip',0,(lucky?lucky+'<br>':'')+cta,'primary'+(lucky?' lucky':''))}</div></div></section>
+    <section class="intake-list"><div class="itemrow"><div><p class="kicker">ROSTER</p><h2>${done?'重点選手を指定':'新入部員名簿'}</h2></div><span>${n} / ${total} 人</span></div>${s.rumor!=null?`<p class="hint">地元だよりで${G.pos[s.rumor]}の逸材に期待。</p>`:''}${done&&s.heir?`<p>${s.heir.name}から「${G.traits[s.heir.k]}」を継承。</p>`:''}<div class="rookies">${s.pack.map((v,i)=>i<n?button('enroll',v.id,`${portrait(v)}<span><b>${v.rank} ・ ${G.pos[v.slot]}</b><strong>${v.name}</strong>${done?`<small class="scout-line">打${v.stats[0]} 投${v.stats[1]} 守${v.stats[2]}</small>`:''}</span>`,'rookie rank-'+v.rank,!done):`<div class="rookie sealed"><b>${String(i+1).padStart(2,'0')}</b><small>未開封</small></div>`).join('')}</div>
+    <details class="cap-key"><summary>ランクと成長上限</summary><div>${Object.keys(G.potential).map(rank=>`<span>${rank} <b>${capText({rank})}</b></span>`).join('')}</div><p>年数・公式戦勝利・スカウト網で新入生の質が向上します。</p></details></section></div></section>`;
   }
   const D=G.D;
   function cardNote(c){return D.detail(c)||G.labels[c.k]+'の基礎練習';}
@@ -94,16 +101,16 @@
     <div class="deck-lock"><div><strong>${s.draft.length}</strong> 枚採用 <small>最低 ${minimum}枚</small></div>${button('lock',0,short?'あと'+short+'枚選択':'このデッキで始める','primary',short>0)}</div>
     ${G.labels.map((l,k)=>`<section class="book-group"><h3>${ico(acts[k])} ${l}</h3><div class="book-grid">${s.library.filter(c=>c.k===k).map(c=>{
       const on=s.draft.includes(c.id);
-      return `<button class="book-entry ${on?'selected':''}" data-act="toggle" data-n="${c.id}" aria-pressed="${on}"><span class="check">${on?'✓':'＋'}</span><span><strong>${c.name}</strong><small>${c.steps}マス ・ 基礎 +${1+c.tier}</small>${D.detail(c)?`<small>${D.detail(c)}</small>`:''}</span></button>`;
+      return `<button class="book-entry ${on?'selected':''}" data-act="toggle" data-n="${c.id}" aria-pressed="${on}"><span class="check">${on?'✓':'＋'}</span><span><strong>${c.name}</strong><small>${c.steps}マス ・ 通常 +${c.steps*(2+c.tier)}</small>${D.detail(c)?`<small>${D.detail(c)}</small>`:''}</span></button>`;
     }).join('')}</div></section>`).join('')}`;
   }
   function practiceBoard(){
     const s=state,camp=s.phase==='camp';
     return roadmap()+head(camp?'flag':'cards',camp?'合宿の特別練習':'練習を選択',camp?'TRAINING CAMP':'TRAINING DECK',`手札 ${s.cards.length}枚`)+
-      `<div class="deck-info"><span>${camp?'手札1枚で特能に挑戦。日程は進みません。':'使った1枚を補充します。'}</span><small>山札 ${s.pile.length} ／ 捨て札 ${s.discard.length}</small></div><div class="hand-grid">${s.cards.map((c,i)=>{
+      `<div class="deck-info"><span>${camp?'手札1枚で特能に挑戦。日程は進みません。':'歩数に応じて全員が成長。各選手の上限まで。'}</span><small>山札 ${s.pile.length} ／ 捨て札 ${s.discard.length}</small></div><div class="hand-grid">${s.cards.map((c,i)=>{
       const k=c.k,to=G.landing(s,c),tile=s.tiles[to],p=G.trainingTarget(s,c);
-      const result=camp?`${p.name}・${G.skillName(c)} ${Math.round(100*G.skillOdds(s,c,true))}%`:`${to-s.day}マス　${tileIcons[tile]} ${G.tileNames[tile]}`;
-      return `<button class="hand-card tone${k}" data-to="${camp?s.day:to}" data-act="${camp?'camp':'practice'}" data-n="${i}"><span class="hand-art"><img src="./assets/${filenames[k]}.png" alt=""></span><span class="hand-data"><strong>${c.name}</strong><b>${ico(acts[k])} ${G.labels[k]} +${camp?2:G.gain(s,c)}</b><span>${result}</span>${(camp?c.mentor:D.detail(c))?`<small>${camp?c.mentor+'直伝':D.detail(c)}</small>`:''}</span></button>`;
+      const result=camp?`${p.name}・${G.skillName(c)} ${Math.round(100*G.skillOdds(s,c,true))}%`:`${tileIcons[tile]} ${G.tileNames[tile]}${to-s.day<c.steps?'で途中停止':'へ'}`;
+      return `<button class="hand-card tone${k}" data-to="${camp?s.day:to}" data-act="${camp?'camp':'practice'}" data-n="${i}"><span class="hand-art"><b class="move-num">${camp?ico('flag'):to-s.day}<small>${camp?'合宿':'マス'}</small></b><img src="./assets/${filenames[k]}.png" alt=""></span><span class="hand-data"><strong>${c.name}</strong><b>${ico(acts[k])} ${G.labels[k]} +${camp?Math.min(2,G.cap(s,p)-p.stats[k]):G.gain(s,c)}</b><span>${result}</span>${(camp?c.mentor:D.detail(c))?`<small>${camp?c.mentor+'直伝':D.detail(c)}</small>`:''}</span></button>`;
     }).join('')}</div><div class="focusline">${ico('target')}重点育成 <strong>${focused().name}</strong>${button('tab',1,'変更','linkbtn')}</div>${notebook()}`;
   }
   function choices(title,en,hint,arr,act){
@@ -118,8 +125,8 @@
     return head('trophy',G.matchName(m),'TOURNAMENT',state.challenge?'名門戦 Lv.'+state.challenge:'公式戦')+
       `<div class="score"><span>青葉高校<small>自校</small></span><b>${m.us} – ${m.them}</b><span>${m.opp}<small>相手戦力 ${m.level}</small></span></div>`+
       (prev?`<p class="playlog">${prev.success?'采配成功':'相手が優勢'} ・ この攻防で ${prev.runs}得点 / ${prev.against}失点</p>`:'')+
-      (done?`<div class="scene ${champion?'champion':''}">${champion?ico('trophy'):''}<h3>${m.us>m.them?(champion?'全国優勝！':m.competition==='autumn'?'春本戦 出場決定！':'青葉高校の勝利！'):(m.competition==='autumn'?'秋予選 敗退':'大会終了')}</h3><p>${state.logs.find(v=>v.type==='win'||v.type==='game')?.detail||''}</p></div>`+button('exitMatch',0,m.us>m.them&&m.round<G.lastRound(m)?'次の試合へ':m.competition==='summer'?'夏のデッキ編成へ':'カレンダーへ','primary'):
-      `<div class="scene"><h3>${frame}・${G.situations[m.scene][0]}</h3><p>${G.situations[m.scene][1]}</p></div><div class="options">${tactics.map((v,k)=>button('play',k,description(ico(acts[k])+' '+v,`${['長打狙い・失点リスク大','投打のバランス重視','失点を抑える・得点少'][k]}${state.policy===k?' ／ 方針一致':''}`,`成功 ${Math.round(100*G.odds(state,k))}%`))).join('')}</div>`);
+      (done?`<div class="scene ${champion?'champion':''}">${champion?ico('trophy'):''}<h3>${m.us>m.them?(champion?(m.competition==='spring'?'春の本戦 優勝！':'夏の全国優勝！'):m.competition==='autumn'?'春本戦 出場決定！':'青葉高校の勝利！'):(m.competition==='autumn'?'秋予選 敗退':'大会終了')}</h3><p>${state.logs.find(v=>v.type==='win'||v.type==='game')?.detail||''}</p></div>`+button('exitMatch',0,m.us>m.them&&m.round<G.lastRound(m)?'次の試合へ':m.competition==='summer'?'夏のデッキ編成へ':'カレンダーへ','primary'):
+      `<div class="scene"><h3>${frame}・${G.situations[m.scene][0]}</h3><p>${G.situations[m.scene][1]}</p></div><div class="options">${tactics.map((v,k)=>button('play',k,description(ico(acts[k])+' '+v,`${['長打狙い・失点リスク大','投打のバランス重視','失点を抑える・得点少'][k]}${state.policy===k?' ／ 方針一致':''}`,G.outlook(G.odds(state,k))))).join('')}</div>`);
   }
   function stopBoard(){
     const s=state,v=s.visit;
@@ -136,7 +143,7 @@
       const c=D.card(s,s.eventCard)||s.cards[0];
       return roadmap()+choices('地域の練習会','CLUB EVENT','後援会の手伝いか、使った練習に対応する特能講習を選びます。',[description('後援会を手伝う','部費を蓄える','+10 G'),description(G.skillName(c)+'の講習',G.trainingTarget(s,c).name+' ／ '+c.name,Math.round(100*G.skillOdds(s,c,false))+'%')],'visit');
     }
-    return roadmap()+choices('練習試合','EXHIBITION GAME',v.opp+'と対戦。勝てば部費と新しい練習札を獲得。',G.labels.map((l,k)=>description(l+'で勝負',v.k===k?'相手の弱点を突ける':'チームの実力で挑む',Math.round(G.friendlyOdds(s,k)*100)+'%')),'visit');
+    return roadmap()+choices('練習試合','EXHIBITION GAME',v.opp+'と対戦。勝てば部費と新しい練習札を獲得。',G.labels.map((l,k)=>description(l+'で勝負',v.k===k?'相手の弱点を突ける':'チームの実力で挑む',G.outlook(G.friendlyOdds(s,k)))),'visit');
   }
   function board(){
     const s=state;
@@ -164,11 +171,11 @@
   }
   function team(){
     const s=state;
-    return `<section class="page-panel">${head('team','選手名鑑','TEAM ROSTER',s.roster.length+'人')}<p class="hint">重点育成の選手には、練習のたびに追加で能力 +2。</p><div class="roster">${s.roster.map(p=>`<article class="person ${p.id===s.focus?'active':''}"><div class="roster-portrait rank-${p.rank}">${portrait(p)}<b>${p.rank}</b></div><div class="person-head"><span class="chip">${p.grade}年・${G.pos[p.slot]}</span>${p.genius?'<b class="chip hot">天才</b>':''}</div><h3>${p.name}</h3>${p.stats.map((v,k)=>bar(k,v)).join('')}<div class="talents">${[...p.traits.map((v,k)=>v?G.traits[k]+' Lv.'+v:''),p.lead?'好リード Lv.'+p.lead:''].filter(Boolean).join(' ／ ')||'特殊能力 未習得'}</div>${button('focus',p.id,p.id===s.focus?'重点育成中':'重点育成に指定','pill',p.id===s.focus)}</article>`).join('')}</div></section>`;
+    return `<section class="page-panel">${head('team','選手名鑑','TEAM ROSTER',s.roster.length+'人')}<p class="hint">重点選手は進んだマスごとに追加成長。能力の上限は選手ランクと学校の育成環境で決まります。</p><div class="roster">${s.roster.map(p=>`<article class="person ${p.id===s.focus?'active':''}"><div class="roster-portrait rank-${p.rank}">${portrait(p)}<b>${p.rank}</b></div><div class="person-head"><span class="chip">${p.grade}年・${G.pos[p.slot]}</span>${p.genius?'<b class="chip hot">天才</b>':''}</div><h3>${p.name}</h3><span class="potential">各能力の上限 <b>${capText(p)}</b></span>${p.stats.map((v,k)=>bar(k,v,p)).join('')}<div class="talents">${[...p.traits.map((v,k)=>v?G.traits[k]+' Lv.'+v:''),p.lead?'好リード Lv.'+p.lead:''].filter(Boolean).join(' ／ ')||'特殊能力 未習得'}</div>${button('focus',p.id,p.id===s.focus?'重点育成中':'重点育成に指定','pill',p.id===s.focus)}</article>`).join('')}</div></section>`;
   }
   function facilities(){
     const s=state,max=Math.max(s.record,s.year>=3?1:0);
-    return `<div class="page-grid"><section class="page-panel">${head('flag','強化施設','CLUB FACILITIES',s.points+' 伝統Pt')}<p class="hint">試合と卒業で得た伝統Ptを使い、学校を恒久強化。</p>${facilityNames.map((l,k)=>`<article class="upgrade"><div class="itemrow"><h3>${l}</h3><b class="accent">Lv.${s.facility[k]}</b></div><p class="quiet">${['奇数レベルで重点選手の成長 +1。偶数レベルでその効果が全員に広がる。','1レベルごとに新入生の初期能力 +2。','1レベルごとに能力上限 +4。現在の上限 '+G.cap(s)+'。'][k]}</p>${button('upgrade',k,G.cost(s,k)+' Pt で強化','secondary',s.points<G.cost(s,k))}</article>`).join('')}</section><section class="page-panel">${head('trophy','名門への挑戦','CHALLENGE LEAGUE')}<p class="quiet">全国優勝または3年目で解放。名門戦ではレベルごとに相手戦力 +8、勝利時の伝統Pt +1。優勝で次のレベルに挑戦できる。</p><div class="itemrow space"><b>今季の難易度</b><span class="chip">${s.challenge?'名門戦 Lv.'+s.challenge:'通常大会'}</span></div>${max?`<label>大会選択 <select id="difficulty" ${s.day>=11||s.phase!=='practice'?'disabled':''}>${Array.from({length:max+1},(_,i)=>`<option value="${i}" ${i===s.challenge?'selected':''}>${i?'名門戦 Lv.'+i:'通常大会'}</option>`).join('')}</select></label><p class="quiet space">大会前の練習期間に変更できます。</p>`:'<span class="chip">未解放</span>'}<h3 class="space">歴代の指導経験</h3>${G.policies.map((l,k)=>`<div class="sidefoot">${l}<b>${s.mastery[k]} 回採用</b></div>`).join('')}</section></div>`;
+    return `<div class="page-grid"><section class="page-panel">${head('flag','強化施設','CLUB FACILITIES',s.points+' 伝統Pt')}<p class="hint">試合と卒業で得た伝統Ptを使い、学校を恒久強化。</p>${facilityNames.map((l,k)=>`<article class="upgrade"><div class="itemrow"><h3>${l}</h3><b class="accent">Lv.${s.facility[k]}</b></div><p class="quiet">${['1マスごとに、奇数レベルで重点選手の成長 +1。偶数レベルで全員に広がる。','初期能力 +2 と上位ランクの抽選を強化。現在の入部時補正 +'+G.scoutProfile(s).startingBonus+'。','選手ごとの上限に1レベルあたり +4。現在の学校補正 +'+G.limitBonus(s)+'。'][k]}</p>${button('upgrade',k,G.cost(s,k)+' Pt で強化','secondary',s.points<G.cost(s,k))}</article>`).join('')}</section><section class="page-panel">${head('trophy','名門への挑戦','CHALLENGE LEAGUE')}<p class="quiet">全国優勝または3年目で解放。名門戦ではレベルごとに相手戦力 +8、勝利時の伝統Pt +1。優勝で次のレベルに挑戦できる。</p><div class="itemrow space"><b>今季の難易度</b><span class="chip">${s.challenge?'名門戦 Lv.'+s.challenge:'通常大会'}</span></div>${max?`<label>大会選択 <select id="difficulty" ${s.day>=11||s.phase!=='practice'?'disabled':''}>${Array.from({length:max+1},(_,i)=>`<option value="${i}" ${i===s.challenge?'selected':''}>${i?'名門戦 Lv.'+i:'通常大会'}</option>`).join('')}</select></label><p class="quiet space">大会前の練習期間に変更できます。</p>`:'<span class="chip">未解放</span>'}<h3 class="space">歴代の指導経験</h3>${G.policies.map((l,k)=>`<div class="sidefoot">${l}<b>${s.mastery[k]} 回採用</b></div>`).join('')}</section></div>`;
   }
   function journalPage(){
     return `<section class="page-panel logpage">${head('book','野球部の記録','CLUB JOURNAL',state.year+'年目')}<div class="itemrow space"><span>公式戦 <b>${state.wins}勝 ${state.games-state.wins}敗</b></span><span class="accent">夏優勝 ${state.titles}回 ／ 春優勝 ${state.springTitles||0}回</span></div><p class="quiet">直近36件の監督ノート</p>${logs(state.logs)}</section>`;
@@ -190,7 +197,7 @@
     const other=KEY===PRIMARY?SECONDARY:PRIMARY;
     let hasOther=false;
     try{hasOther=!!localStorage.getItem(other);}catch{}
-    openDialog('settings',`<h2 id="modal-title">設定と遊び方</h2><p>練習カードの歩数でカレンダーを進み、夏の4試合を勝ち抜こう。練習で1マスにつき部費1G。購買部で手札枠や練習札を獲得。入学直後と夏の敗退・優勝後にデッキを編成します。秋予選に勝てば春の本戦へ。各選手の在籍期間は3年間。選手名鑑で重点選手をいつでも変更できます。</p><p>合宿は特能習得のチャンス。卒業生の直伝札は普段の成長と特能の習得率が上がります。覚醒や特殊能力は試合で力を発揮し、世代交代で新入生に引き継げます。</p><div class="settings-row">効果音${button('sound',0,sound?'オン':'オフ','pill')}</div><p class="quiet">進行はこのブラウザに自動保存されます。サイトデータを消去すると記録も消えます。</p>${button('switchSchool',0,hasOther?'もう一方のチームを開く':'別のチームで入学式から始める','secondary')}<small class="slot-note">現在は記録${KEY===PRIMARY?'1':'2'}。切り替えてもこのチームは保存されます。</small>${button('close',0,'閉じる','primary')}`);
+    openDialog('settings',`<h2 id="modal-title">設定と遊び方</h2><p>練習カードの歩数でカレンダーを進み、夏の4試合を勝ち抜こう。標準札は1マスごとに能力 +2、部費 +1G。大会などで途中停止すると実際に進んだ分が入ります。購買部で手札枠や練習札を獲得。創部時は固定12枚です。初編成は夏の大会終了後。翌年からは新入生を迎えた春にも組めます。秋予選に勝てば春の本戦へ。各選手の在籍期間は3年間。選手名鑑で重点選手をいつでも変更できます。</p><p>合宿は特能習得のチャンス。卒業生の直伝札は普段の成長と特能の習得率が上がります。覚醒や特殊能力は試合で力を発揮し、世代交代で新入生に引き継げます。</p><div class="settings-row">効果音${button('sound',0,sound?'オン':'オフ','pill')}</div><p class="quiet">進行はこのブラウザに自動保存されます。サイトデータを消去すると記録も消えます。</p>${button('switchSchool',0,hasOther?'もう一方のチームを開く':'別のチームで入学式から始める','secondary')}<small class="slot-note">現在は記録${KEY===PRIMARY?'1':'2'}。切り替えてもこのチームは保存されます。</small>${button('close',0,'閉じる','primary')}`);
   }
   function navigate(i){tab=tabs[i][0];render();window.scrollTo({top:0,behavior:'instant'});}
   document.addEventListener('click',event=>{

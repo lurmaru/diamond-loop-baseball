@@ -6,7 +6,7 @@ function school(seed){
   const s=G.initial(seed);
   while(G.flip(s)){}
   G.enroll(s,s.pack[0].id);
-  assert.ok(G.lockDeck(s));return s;
+  assert.equal(s.phase,'practice');return s;
 }
 
 test('the actual first release save migrates once, preserving the roster, hand and progress',()=>{

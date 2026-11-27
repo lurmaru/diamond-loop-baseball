@@ -1,7 +1,7 @@
 """Run the full mobile UI loop in an isolated Chromium profile.
 
 Requires Python, websockets and Edge (or set CHROMIUM to a Chromium binary).
-With --url, smoke-test a deployed copy. Optional --shots stores two screenshots.
+With --url, smoke-test a deployed copy. Optional --shots stores screenshots of each main screen.
 """
 import argparse
 import base64
@@ -91,6 +91,7 @@ def exercise(b, url, shots):
     b.screen(1440, 900)
     b.send('Page.navigate', url=url)
     b.wait("document.querySelectorAll('.sealed').length===9 && document.querySelector('.card-back img').naturalWidth")
+    assert b.js("getComputedStyle(document.querySelector('.recruit-cover')).backgroundImage.includes('spring-field.webp')")
     b.shot(shots,'desktop')
     for w in [320,390,768,1280,390]:
         b.screen(w,844)
@@ -109,16 +110,23 @@ def exercise(b, url, shots):
         assert b.js(state_expr)['drawn']==n
     b.click('[data-act=enroll]')
     assert len(b.js(state_expr)['roster'])==9
-    b.click('[data-act=toggle][data-n="13"]')
-    b.click('[data-act=toggle][data-n="0"]')
-    b.shot(shots,'spring-build')
-    b.click('[data-act=lock]')
-    assert len(b.js(state_expr)['cards'])==4
-    b.shot(shots,'calendar')
+    opening=b.js(state_expr)
+    assert opening['phase']=='practice' and opening['deck']==list(range(12))
+    assert not b.js("document.querySelector('[data-act=lock]')")
+    assert len(opening['cards'])==4
+    def layouts(name):
+        for w in [320,390,768,1440]:
+            b.screen(w,844)
+            assert b.js('document.documentElement.scrollWidth<=innerWidth'), f'{name} overflow at {w}'
+            if w in [390,1440]:
+                b.shot(shots,f'{name}-{w}')
+        b.screen(390,844)
+    layouts('calendar')
     b.click('#settings')
     b.click('[data-act=sound]')
     b.click('[data-act=close]')
     b.click('[data-act=tab][data-n="1"]')
+    layouts('team')
     b.click('[data-act=focus]:not(:disabled)')
     b.click('[data-act=tab][data-n="0"]')
     cards=b.js(state_expr)['cards']
@@ -130,6 +138,8 @@ def exercise(b, url, shots):
     b.wait('document.querySelector(".board")')
     assert before==b.js(state_expr), 'Reload changed game state'
     phases=set()
+    builds=[]
+    match_seen=False
     for _ in range(140):
         s=b.js(state_expr)
         phase=s['phase']
@@ -142,6 +152,11 @@ def exercise(b, url, shots):
             i=min(range(len(s['cards'])),key=lambda i:s['cards'][i]['steps'])
             b.click(f'[data-act=practice][data-n="{i}"]')
         elif phase=='build':
+            builds.append((s['year'],s['buildWindow']))
+            if s['year']==1:
+                b.click('[data-act=toggle][data-n="13"]')
+                b.click('[data-act=toggle][data-n="0"]')
+                layouts('summer-build')
             b.click('[data-act=lock]')
         elif phase=='camp':
             b.shot(shots,'camp')
@@ -151,29 +166,42 @@ def exercise(b, url, shots):
         elif phase in ['policy','skill']:
             b.click('[data-act=choose]')
         elif phase=='match':
+            if not s['match']['finished']:
+                labels=b.js("Array.from(document.querySelectorAll('[data-act=play] > b'), e=>e.textContent)")
+                assert len(labels)==3 and all(v in ['有利','いけそう','慎重に','厳しい'] for v in labels)
+                assert '%' not in b.js("document.querySelector('.options').textContent")
+                if not match_seen:
+                    layouts('match')
+                    match_seen=True
             b.click('[data-act=exitMatch]' if s['match']['finished'] else '[data-act=play]')
         elif phase=='graduate':
             b.click('[data-act=graduate]')
         elif phase=='intake':
             b.click('[data-act=flip]' if s['drawn']<len(s['pack']) else '[data-act=enroll]')
         elif phase in ['shop','event','friendly','prize']:
+            if phase=='friendly':
+                assert '%' not in b.js("document.querySelector('.options').textContent")
             b.click('[data-act=visit]:not(:disabled)')
         assert b.js('document.documentElement.scrollWidth<=innerWidth')
     else:
         raise AssertionError('Season did not complete')
     assert {'build','practice','match','policy','camp','graduate','intake','event'}<=phases
+    assert builds==[(1,'summer'),(2,'spring')]
     assert len(s['roster']) in [12,13]
     b.click('[data-act=tab][data-n="2"]')
+    layouts('facilities')
     b.click('[data-act=upgrade]:not(:disabled)')
     assert sum(b.js(state_expr)['facility'])==1
     b.click('[data-act=tab][data-n="3"]')
+    layouts('journal')
     assert b.js('document.querySelectorAll(".journal li").length')>=10
     # Exercise advanced screens with the same engine as a live campaign.
     def fixture(setup):
-        b.js(f"(()=>{{const G=DiamondGame,s=G.initial(904);while(G.flip(s)){{}}G.enroll(s,s.pack[0].id);G.lockDeck(s);{setup};localStorage.setItem('{KEY}',JSON.stringify(s));}})()")
+        b.js(f"(()=>{{const G=DiamondGame,s=G.initial(904);while(G.flip(s)){{}}G.enroll(s,s.pack[0].id);{setup};localStorage.setItem('{KEY}',JSON.stringify(s));}})()")
         b.send('Page.reload')
         b.wait('document.querySelector(".board")')
     fixture("s.phase='shop';s.cash=90;s.visit={};s.offers=[15,16,17]")
+    layouts('shop')
     b.click('[data-act=expand]')
     b.click('[data-act=visit][data-n="0"]')
     b.click('[data-act=visit][data-n="3"]')
@@ -204,7 +232,7 @@ def exercise(b, url, shots):
     b.click('[data-act=switchSchool]')
     assert b.js(state_expr)==migrated
     assert not b.errors, b.errors
-    print('PASS mobile/desktop intake, deck editing, saved hand, camps, autumn, shop expansion, returning alumnus, promotion, migration and two save slots',flush=True)
+    print('PASS widths 320/390/768/1440, fixed opening deck, summer/spring edits, qualitative tactics, camps, recruiting, shop, returning alumnus, promotion, migration and two save slots',flush=True)
 
 
 def main():
