@@ -71,6 +71,77 @@ test('match results and points cannot be claimed twice',()=>{
   assert.equal(G.play(s,2),false);assert.equal(s.points,score);
   assert.ok(G.exitMatch(s));assert.equal(G.exitMatch(s),false);
 });
+function matchSchool(competition,lead){
+  const s=school(501);
+  for(const p of s.roster){
+    p.rank='B';p.stats.fill(40);p.xp.fill(0);
+  }
+  s.phase='match';
+  s.match={competition,round:0,opp:'試験校',level:55,us:Math.max(0,lead),
+    them:Math.max(0,-lead),step:0,scene:0,plays:[],finished:false};
+  return s;
+}
+test('official wins and losses share experience by tactic once at full time',()=>{
+  for(const competition of ['summer','autumn','spring']){
+    for(const lead of [-20,20]){
+      let s=matchSchool(competition,lead);
+      const initial=structuredClone(s.roster);
+      assert.ok(G.play(s,0));assert.ok(G.play(s,1));
+      assert.deepEqual(s.roster,initial);
+      s=G.migrate(JSON.parse(JSON.stringify(s)));
+      assert.ok(G.play(s,0));assert.ok(s.match.finished);
+      assert.equal(s.match.us>s.match.them,lead>0);
+      for(const [i,p] of s.roster.entries()){
+        assert.deepEqual(p.xp,[80,40,0,40,20,0,0,0,0]);
+        assert.deepEqual(p.traits,initial[i].traits);
+      }
+      assert.match(s.logs[0].detail,/打撃・長打力 ／ 投球・制球力の実戦経験/);
+      const roster=structuredClone(s.roster);
+      s=G.migrate(JSON.parse(JSON.stringify(s)));
+      assert.equal(G.play(s,2),false);assert.ok(G.exitMatch(s));
+      assert.deepEqual(s.roster,roster);
+    }
+  }
+});
+test('extra innings redistribute the fixed pool and respect existing XP and caps',()=>{
+  const s=matchSchool('summer',0);
+  assert.ok(G.play(s,0));assert.ok(G.play(s,0));
+  const preview=structuredClone(s);
+  assert.ok(G.play(preview,0));
+  const ninth=preview.match.plays.at(-1);
+  s.match.us=10+ninth.against;s.match.them=10+ninth.runs;
+  const p=s.roster[0],capped=s.roster[1];
+  capped.stats.fill(G.cap(s,capped));p.xp.fill(115);
+  const before=structuredClone(s.roster);
+  assert.ok(G.play(s,0));assert.ok(s.match.extra);assert.equal(s.match.finished,false);
+  assert.deepEqual(s.roster,before);
+  while(!s.match.finished)assert.ok(G.play(s,2));
+  const units=player=>player.stats.map((v,i)=>v*120+player.xp[i]);
+  const delta=units(p).map((v,i)=>v-units(before[0])[i]);
+  assert.equal(delta.reduce((a,b)=>a+b,0),180);
+  assert.ok(delta[0]>0 && delta[2]>0);
+  assert.equal(delta[0],2*delta[3]);assert.equal(delta[2],2*delta[8]);
+  assert.deepEqual(capped,before[1]);
+  assert.match(s.logs[0].detail,/1人の能力が上昇/);
+});
+test('friendly win and loss earn one sixth of official XP, independent of the prize',()=>{
+  for(const won of [false,true]){
+    const s=matchSchool('summer',0);
+    s.phase='friendly';s.match=null;s.visit={k:2,opp:'試験校',level:40};
+    s.rng=won?0:1800;
+    assert.equal(G.visitAction(s,3),false);
+    assert.ok(G.visitAction(s,2));
+    assert.equal(s.phase,won?'prize':'practice');
+    for(const p of s.roster)assert.deepEqual(p.xp,[0,0,20,0,0,0,0,0,10]);
+    assert.match(s.lastStop,/守備・肩力の実戦経験/);
+    assert.match(s.logs[0].detail,/守備・肩力の実戦経験/);
+    const saved=G.migrate(JSON.parse(JSON.stringify(s)));
+    const roster=structuredClone(saved.roster);
+    if(won)assert.ok(G.visitAction(saved,3));
+    assert.equal(G.visitAction(saved,2),false);
+    assert.deepEqual(saved.roster,roster);
+  }
+});
 test('inherited skills survive a saved recruitment screen',()=>{
   let s=school(132);
   s.roster.forEach(p=>p.grade=3);const senior=s.roster[0];

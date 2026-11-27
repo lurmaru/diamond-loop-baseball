@@ -131,7 +131,7 @@
       `<div class="score"><span>青葉高校<small>自校</small></span><b>${m.us} – ${m.them}</b><span>${m.opp}<small>相手戦力 ${m.level}</small></span></div>`+
       (prev?`<p class="playlog">${prev.success?'采配成功':'相手が優勢'} ・ この攻防で ${prev.runs}得点 / ${prev.against}失点</p>`:'')+
       (done?`<div class="scene ${champion?'champion':''}">${champion?ico('trophy'):''}<h3>${m.us>m.them?(champion?(m.competition==='spring'?'春の本戦 優勝！':'夏の全国優勝！'):m.competition==='autumn'?'春本戦 出場決定！':'青葉高校の勝利！'):(m.competition==='autumn'?'秋予選 敗退':'大会終了')}</h3><p>${state.logs.find(v=>v.type==='win'||v.type==='game')?.detail||''}</p></div>`+button('exitMatch',0,m.us>m.them&&m.round<G.lastRound(m)?'次の試合へ':m.competition==='summer'?'夏のデッキ編成へ':'カレンダーへ','primary'):
-      `<div class="scene"><h3>${frame}・${G.situations[m.scene][0]}</h3><p>${G.situations[m.scene][1]}</p></div><div class="options">${tactics.map((v,k)=>button('play',k,description(ico(acts[k])+' '+v,`${['長打狙い・失点リスク大','投打のバランス重視','失点を抑える・得点少'][k]}${state.policy===k?' ／ 方針一致':''}`,G.outlook(G.odds(state,k))))).join('')}</div>`);
+      `<div class="scene"><h3>${frame}・${G.situations[m.scene][0]}</h3><p>${G.situations[m.scene][1]}</p></div><div class="options">${tactics.map((v,k)=>button('play',k,description(ico(acts[k])+' '+v,`${['長打狙い・失点リスク大','投打のバランス重視','失点を抑える・得点少'][k]}${state.policy===k?' ／ 方針一致':''}`,G.outlook(G.odds(state,k))))).join('')}</div><p class="hint">試合後、選んだ采配に応じて部員全員が実戦経験を積みます。</p>`);
   }
   function stopBoard(){
     const s=state,v=s.visit;
@@ -148,7 +148,7 @@
       const c=D.card(s,s.eventCard)||s.cards[0];
       return roadmap()+choices('地域の練習会','CLUB EVENT','後援会の手伝いか、使った練習に対応する特能講習を選びます。',[description('後援会を手伝う','部費を蓄える','+10 G'),description(G.skillName(c)+'の講習',G.trainingTarget(s,c).name+' ／ '+c.name,c.mentor?'直伝の好機':'習得に挑戦')],'visit');
     }
-    return roadmap()+choices('練習試合','EXHIBITION GAME',v.opp+'と対戦。勝てば部費と新しい練習札を獲得。',G.labels.map((l,k)=>description(l+'で勝負',v.k===k?'相手の弱点を突ける':'チームの実力で挑む',G.outlook(G.friendlyOdds(s,k)))),'visit');
+    return roadmap()+choices('練習試合','EXHIBITION GAME',v.opp+'と対戦。選んだ分野の実戦経験を少し獲得。勝てば部費と練習札も。',G.labels.map((l,k)=>description(l+'で勝負',v.k===k?'相手の弱点を突ける':'チームの実力で挑む',G.outlook(G.friendlyOdds(s,k)))),'visit');
   }
   function board(){
     const s=state;

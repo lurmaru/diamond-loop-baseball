@@ -137,6 +137,7 @@ summary {cursor:pointer;min-height:44px;padding:8px 0;font-weight:bold}
 .journal li:last-child {border:0}
 .journal i {width:5px;height:5px;transform:rotate(45deg);background:var(--rust);flex:none;margin-top:8px}
 .journal strong,.journal small,.yr {display:block}
+.journal small,.scene p {white-space:pre-line}
 .journal strong {font-size:14px}.journal small,.yr {font-size:12px;color:var(--muted)}
 .road {background:#eef1e6;border:1px solid #c3cdbb;padding:12px;margin-bottom:18px}
 .road-title {margin-bottom:8px;font-size:14px}

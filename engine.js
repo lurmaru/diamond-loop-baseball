@@ -233,6 +233,33 @@
     p.stats[k]=Math.min(limit,p.stats[k]+Math.floor(units/120));
     p.xp[k]=p.stats[k]>=limit?0:units%120;
   }
+  const matchSpecialties=[3,4,8]; // Strong swing, pitching duel, defensive play.
+  function matchExperience(s,tactics,secondaryPoints){
+    // Share a fixed pool across all decisions, including extra innings.
+    // Allocate in tenths so rounding never adds or loses experience.
+    const units=[0,0,0],pool=secondaryPoints*10;
+    for(const [i,k] of tactics.entries()){
+      units[k]+=Math.round(pool*(i+1)/tactics.length)-Math.round(pool*i/tactics.length);
+    }
+    const kinds=[0,1,2].filter(k=>units[k]>0);
+    let gained=false,improved=0;
+    for(const p of s.roster){
+      const limit=cap(s,p);
+      let rose=false;
+      for(const k of kinds){
+        const secondary=matchSpecialties[k];
+        const before=p.stats[k]+p.stats[secondary];
+        if(p.stats[k]<limit||p.stats[secondary]<limit)gained=true;
+        addXP(p,k,2*units[k]/10,limit);
+        addXP(p,secondary,units[k]/10,limit);
+        if(p.stats[k]+p.stats[secondary]>before)rose=true;
+      }
+      if(rose)improved++;
+    }
+    const skills=kinds.map(k=>labels[k]+'・'+statNames[matchSpecialties[k]]).join(' ／ ');
+    if(!gained)return skills+'は全員が能力上限に到達済み。';
+    return skills+'の実戦経験を獲得。'+(improved?improved+'人の能力が上昇。':'');
+  }
   function setIndividual(s,id,k){
     const p=s.roster.find(v=>v.id===id);
     if(!p||!Number.isInteger(k)||k<3||k>=statNames.length)return false;
@@ -335,7 +362,7 @@
   const friendlyOdds=(s,k)=>Math.max(.20,Math.min(.9,.55+(strength(s,k)-s.visit.level)/80+(s.visit.k===k?.14:0)));
   function visitAction(s,n){
     if(s.report||!Number.isInteger(n)||n<0||n>3)return false;
-    let message;
+    let message,detail=date(s.day);
     if(s.phase==='shop'){
       if(n===3)message='買い物を終えた';
       else {
@@ -348,8 +375,11 @@
       if(n===0){s.cash+=10;message='後援会の手伝いで部費 +10G';}
       else {skillRoll(s,D.card(s,s.eventCard)||s.cards[0],false);message=s.report.title;}
     }else if(s.phase==='friendly'&&n<3){
-      if(random(s)<friendlyOdds(s,n)){
-        s.phase='prize';s.offers=D.offers(s,()=>random(s),true);s.cash+=8;addLog(s,'練習試合に勝利','部費 +8G。練習帳に加える札を選べる。','win');return true;
+      const won=random(s)<friendlyOdds(s,n);
+      detail=matchExperience(s,[n],1);
+      s.lastStop='練習試合'+(won?'に勝利。':'に敗戦。')+detail;
+      if(won){
+        s.phase='prize';s.offers=D.offers(s,()=>random(s),true);s.cash+=8;addLog(s,'練習試合に勝利','部費 +8G。'+detail,'win');return true;
       }
       s.cash+=2;message='練習試合に敗戦。参加助成 +2G';
     }else if(s.phase==='prize'&&n<3){
@@ -357,7 +387,7 @@
       message=D.card(s,s.offers[n]).name+'を練習帳に登録';
     }else if(s.phase==='prize'&&n===3){message='勝利報酬の部費を受け取った';}
     else return false;
-    addLog(s,message,date(s.day));s.phase='practice';s.visit=null;deal(s);return true;
+    addLog(s,message,detail);s.phase='practice';s.visit=null;deal(s);return true;
   }
   function acknowledge(s){if(!s.report)return false;s.report=null;return true;}
   function choose(s,k){
@@ -410,7 +440,8 @@
         s.springTitles=(s.springTitles||0)+1;s.record=Math.max(s.record,s.challenge+1);
       }
       if(won&&m.round===3){s.titles++;s.record=Math.max(s.record,s.challenge+1);}
-      addLog(s,(won?'勝利':'敗戦')+'・'+matchName(m),m.us+' 対 '+m.them+'　'+m.opp+'｜伝統Pt +'+reward+' ／ 部費 +'+(won?8:3)+'G',won?'win':'game');
+      const growth=matchExperience(s,m.plays.map(p=>p.k),6);
+      addLog(s,(won?'勝利':'敗戦')+'・'+matchName(m),m.us+' 対 '+m.them+'　'+m.opp+'｜伝統Pt +'+reward+' ／ 部費 +'+(won?8:3)+'G\n'+growth,won?'win':'game');
     }else m.scene=(m.scene+1+int(s,2))%3;
     return true;
   }

@@ -149,6 +149,7 @@ def exercise(b, url, shots):
     phases=set()
     builds=[]
     match_seen=False
+    result_seen=False
     for _ in range(350):
         s=b.js(state_expr)
         phase=s['phase']
@@ -185,6 +186,13 @@ def exercise(b, url, shots):
                 if not match_seen:
                     layouts('match')
                     match_seen=True
+            elif not result_seen:
+                assert '実戦経験' in b.js("document.querySelector('.scene').innerText")
+                b.send('Page.reload')
+                b.wait("document.querySelector('[data-act=exitMatch]')")
+                assert b.js(state_expr)==s, 'Reload reapplied match experience'
+                layouts('match-result')
+                result_seen=True
             b.click('[data-act=exitMatch]' if s['match']['finished'] else '[data-act=play]')
         elif phase=='graduate':
             b.click('[data-act=graduate]')
@@ -199,6 +207,7 @@ def exercise(b, url, shots):
         raise AssertionError('Season did not complete')
     assert {'build','practice','match','policy','camp','graduate','intake','event'}<=phases
     assert builds==[(1,'summer'),(2,'spring')]
+    assert result_seen
     assert len(s['roster']) in [12,13]
     b.click('[data-act=tab][data-n="2"]')
     layouts('facilities')
@@ -213,6 +222,19 @@ def exercise(b, url, shots):
         b.js(f"(()=>{{const G=DiamondGame,s=G.initial(904);while(G.flip(s)){{}}G.enroll(s,s.pack[0].id);{setup};localStorage.setItem('{KEY}',JSON.stringify(s));}})()")
         b.send('Page.reload')
         b.wait('document.querySelector(".board")')
+    for won,seed in [(True,0),(False,1800)]:
+        fixture(f"s.phase='friendly';s.visit={{opp:'試験校',level:40,k:1}};s.rng={seed}")
+        b.click('[data-act=visit][data-n="1"]')
+        result=b.js(state_expr)
+        assert result['phase']==('prize' if won else 'practice')
+        assert '投球・制球力の実戦経験' in b.js("document.querySelector('.road p').innerText")
+        assert result['roster'][0]['xp'][1]==20
+        b.send('Page.reload')
+        b.wait("document.querySelector('.road p')")
+        assert b.js(state_expr)==result
+        if won:
+            b.click('[data-act=visit][data-n="3"]')
+            assert b.js(state_expr)['roster']==result['roster']
     fixture("s.phase='shop';s.cash=90;s.visit={};s.offers=[15,16,17]")
     layouts('shop')
     b.click('[data-act=expand]')
@@ -277,7 +299,7 @@ def exercise(b, url, shots):
     assert b.js("localStorage.getItem('diamond-loop.active')")=='1'
     assert b.js(state_expr)['drawn']==1 and b.js("localStorage.getItem('diamond-loop.school.second')")==None
     assert not b.errors, b.errors
-    print('PASS widths 320/390/768/1440, fixed opening deck, summer/spring edits, 365-day season, illustrated rarity cards, qualitative growth, individual training, six facilities, deletion, camps, recruiting, shop, returning alumnus, promotion, migration and two save slots',flush=True)
+    print('PASS widths 320/390/768/1440, fixed opening deck, summer/spring edits, 365-day season, illustrated rarity cards, qualitative growth, individual training, match experience and reloads, six facilities, deletion, camps, recruiting, shop, returning alumnus, promotion, migration and two save slots',flush=True)
 
 
 def main():
