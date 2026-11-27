@@ -50,8 +50,8 @@ main {padding:22px 0 45px}
 .issue>b {border:1px solid var(--forest);padding:1px 6px}
 .goal-line {font-size:13px;font-weight:650}
 .goal-line strong {color:var(--rust)}
-.chapter-cover {min-height:auto;background:var(--sheet);flex-direction:row;align-items:center;border-top:4px double var(--forest);border-bottom:1px solid var(--line)}
-.chapter-cover h1 {font-size:32px}
+.club-date {display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:3px double var(--line);padding:4px 0 8px;color:var(--muted);font-size:13px}
+.club-date b {color:var(--ink)}
 .recruit-cover {min-height:225px;padding:30px clamp(20px,4vw,60px)}
 .recruit-cover h1 {font-size:clamp(40px,5vw,75px)}
 .recruit-cover p:last-child {font-size:14px;font-weight:bold}
@@ -228,7 +228,7 @@ dialog .primary {display:block;width:100%;margin-top:14px}
   nav {position:fixed;z-index:5;bottom:0;left:0;right:0;display:flex;justify-content:space-around;background:var(--forest);border-top:2px solid #c5b17c;padding:2px 5px max(2px,env(safe-area-inset-bottom))}
   .nav-btn {flex:1;justify-content:center;flex-direction:column;gap:1px;padding:5px 0;min-height:49px;font-size:11px}.nav-btn .ico {width:20px;height:20px}
   .top-tools {gap:8px}main {padding:12px 0 84px}.opening main {padding-bottom:20px}
-  .hero {min-height:130px;padding:16px}.chapter-cover {min-height:auto}.chapter-cover .goal-line {display:none}
+  .hero {min-height:130px;padding:16px}
   .intake-columns {grid-template-columns:1fr;gap:12px;margin-top:12px}.recruit-cover {min-height:157px;padding:18px}
   .recruit-cover h1 {font-size:38px}.recruit-cover p:last-child {font-size:12px}
   .draw-stage {padding:16px 3px 0;gap:24px}.draw-panel {padding-bottom:16px}

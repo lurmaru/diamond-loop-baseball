@@ -51,8 +51,8 @@
     const s=state,date=G.date(s.day);
     const deadline=s.day<11?[11,'夏の大会']:s.day<18?[18,'秋予選']:s.qualified&&s.day<33?[33,'春本戦']:[35,'年度末'];
     const next=s.phase==='match'?G.matchName(s.match):deadline[1]+'まで <strong>あと'+(deadline[0]-s.day)+'マス</strong>';
-    const name=tabs.find(t=>t[0]===tab)?.[1]||'監督室';
-    return `<section class="hero ${tab==='home'?'field-cover':'chapter-cover'}"><div><p class="kicker">AOBA BASEBALL CLUB</p><h1>${tab==='home'?'青葉高校 野球部':name}</h1><div class="issue"><b>${s.year}年目</b><span>${ico('calendar')} ${date}</span><span>${season()}</span></div></div><p class="goal-line">${ico('trophy')} ${next}</p></section>`;
+    if(tab!=='home')return `<div class="club-date"><b>青葉高校 野球部</b><span>${s.year}年目　${ico('calendar')} ${date}</span></div>`;
+    return `<section class="hero field-cover"><div><p class="kicker">AOBA BASEBALL CLUB</p><h1>青葉高校 野球部</h1><div class="issue"><b>${s.year}年目</b><span>${ico('calendar')} ${date}</span><span>${season()}</span></div></div><p class="goal-line">${ico('trophy')} ${next}</p></section>`;
   }
   const head=(ic,title,en,chip='')=>`<div class="sectionhead"><div class="heading-icon">${ico(ic)}</div><div><div class="eyebrow">${en}</div><h2>${title}</h2></div>${chip?`<span class="step">${chip}</span>`:''}</div>`;
   const capText=p=>Number.isFinite(G.cap(state,p))?String(G.cap(state,p)):'∞';
