@@ -6,11 +6,17 @@ const sample = (s, salt) => ((s.rng >>> 8) + salt) % 3;
 function campaign(seed, years, guided, challenge, audit=false) {
   let s=G.initial(seed);
   const history=[];
+  const sign=()=>{
+    while(G.flip(s)){}
+    const i=best(s.pack.map(p=>p.stats.reduce((a,b)=>a+b)+8*p.genius));
+    assert.ok(G.enroll(s,s.pack[i].id));
+  };
+  sign();
   for (let year=1;year<=years;year++) {
     const previous=s.titles;
     let guard=0;
     if(challenge && year>=3) G.setChallenge(s,Math.max(1,s.record));
-    while(s.year===year || s.phase==='recruit') {
+    while(s.year===year || s.phase==='intake') {
       assert.ok(++guard<250);
       if(audit) s=JSON.parse(JSON.stringify(s));
       if(s.report){assert.ok(G.acknowledge(s));continue;}
@@ -27,7 +33,11 @@ function campaign(seed, years, guided, challenge, audit=false) {
           else assert.ok(G.play(s,guided?best([0,1,2].map(k=>G.odds(s,k))):random));
           break;
         case 'graduate':assert.ok(G.graduate(s,s.graduates[0]));break;
-        case 'recruit':assert.ok(G.recruit(s,best(s.options.map(p=>p.stats.reduce((a,b)=>a+b)+8*p.genius))));break;
+        case 'intake':sign();break;
+        case 'shop':assert.ok(G.visitAction(s,!s.visit.sold[random]&&s.cash>=G.price(s,random)?random:3));break;
+        case 'event':assert.ok(G.visitAction(s,guided?1:random%2));break;
+        case 'friendly':assert.ok(G.visitAction(s,guided?best([0,1,2].map(k=>G.friendlyOdds(s,k))):random));break;
+        case 'prize':assert.ok(G.visitAction(s,guided&&s.policy>=0?s.policy:random));break;
         default:throw Error(s.phase);
       }
     }
@@ -35,11 +45,12 @@ function campaign(seed, years, guided, challenge, audit=false) {
       const k=s.facility.indexOf(Math.min(...s.facility));
       if(!G.upgrade(s,k))break;
     }
-    assert.equal(s.roster.length,9);
-    assert.equal(new Set(s.roster.map(p=>p.id)).size,9);
+    assert.ok(s.roster.length>=9 && s.roster.length<=18);
+    assert.equal(new Set(s.roster.map(p=>p.id)).size,s.roster.length);
     assert.equal(new Set(s.roster.map(p=>p.slot)).size,9);
     assert.ok(s.roster.every(p=>p.stats.every(v=>Number.isFinite(v)&&v<=G.cap(s))));
     assert.equal(s.year,year+1);
+    assert.ok(s.cash>=0 && s.drills.every(n=>n===0));
     assert.ok(s.points>=0 && s.logs.length<=36);
     history.push({title:s.titles>previous,lv:s.challenge,power:G.power(s)});
   }

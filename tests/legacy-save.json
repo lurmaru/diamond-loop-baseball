@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "rng": 1238111045,
+  "year": 1,
+  "week": 1,
+  "phase": "practice",
+  "nextId": 10,
+  "roster": [
+    {
+      "id": 1,
+      "name": "青山 湊",
+      "slot": 0,
+      "grade": 1,
+      "genius": true,
+      "stats": [
+        41,
+        54,
+        39
+      ],
+      "traits": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "name": "日高 伊織",
+      "slot": 1,
+      "grade": 2,
+      "genius": false,
+      "stats": [
+        26,
+        38,
+        34
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 3,
+      "name": "桐谷 航",
+      "slot": 2,
+      "grade": 3,
+      "genius": false,
+      "stats": [
+        39,
+        33,
+        37
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 4,
+      "name": "宮原 航",
+      "slot": 3,
+      "grade": 1,
+      "genius": false,
+      "stats": [
+        33,
+        34,
+        34
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 5,
+      "name": "藤野 春樹",
+      "slot": 4,
+      "grade": 2,
+      "genius": false,
+      "stats": [
+        28,
+        45,
+        35
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 6,
+      "name": "青山 千晴",
+      "slot": 5,
+      "grade": 3,
+      "genius": false,
+      "stats": [
+        28,
+        33,
+        34
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 7,
+      "name": "藤野 海斗",
+      "slot": 6,
+      "grade": 1,
+      "genius": false,
+      "stats": [
+        33,
+        33,
+        27
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 8,
+      "name": "高梨 拓海",
+      "slot": 7,
+      "grade": 2,
+      "genius": false,
+      "stats": [
+        30,
+        43,
+        35
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": 9,
+      "name": "天野 陸",
+      "slot": 8,
+      "grade": 3,
+      "genius": false,
+      "stats": [
+        29,
+        32,
+        35
+      ],
+      "traits": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "k": 0,
+      "tier": 0,
+      "name": "打撃練習"
+    },
+    {
+      "k": 1,
+      "tier": 0,
+      "name": "投球練習"
+    },
+    {
+      "k": 2,
+      "tier": 1,
+      "name": "連係ノック"
+    }
+  ],
+  "points": 0,
+  "facility": [
+    0,
+    0,
+    0
+  ],
+  "mastery": [
+    0,
+    1,
+    0
+  ],
+  "policy": 1,
+  "focus": 1,
+  "logs": [
+    {
+      "year": 1,
+      "title": "投手王国を採用",
+      "detail": "投球の練習に相乗効果。指導経験が残る。",
+      "type": "note"
+    },
+    {
+      "year": 1,
+      "title": "ブルペン特訓 完了",
+      "detail": "投球の合計成長 +30。重点選手は 青山 湊。",
+      "type": "train"
+    },
+    {
+      "year": 1,
+      "title": "新チーム始動",
+      "detail": "9人の部員と、最初の夏に挑もう。",
+      "type": "spring"
+    }
+  ],
+  "titles": 0,
+  "wins": 0,
+  "games": 0,
+  "best": 0,
+  "challenge": 0,
+  "record": 0,
+  "match": null,
+  "options": [
+    {
+      "k": 0,
+      "bonus": 3,
+      "style": 2
+    },
+    {
+      "k": 1,
+      "bonus": 1,
+      "style": 0
+    },
+    {
+      "k": 2,
+      "bonus": 1,
+      "style": 2
+    }
+  ],
+  "report": null,
+  "graduates": [],
+  "heir": null,
+  "yearWins": 0,
+  "skillPool": [],
+  "style": 0,
+  "manuals": 0
+}

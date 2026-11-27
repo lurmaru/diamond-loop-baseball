@@ -90,19 +90,35 @@ def exercise(b, url, shots):
     b.send('Page.enable')
     b.screen(1440, 900)
     b.send('Page.navigate', url=url)
-    b.wait("document.querySelectorAll('.card').length===3 && [...document.images].every(i=>i.complete&&i.naturalWidth)")
+    b.wait("document.querySelectorAll('.sealed').length===9 && document.querySelector('.card-back img').naturalWidth")
     b.shot(shots,'desktop')
     for w in [320,390,768,1280,390]:
         b.screen(w,844)
         assert b.js('document.documentElement.scrollWidth<=innerWidth'), f'Overflow at {w}'
     b.shot(shots,'mobile')
+    state_expr = f'JSON.parse(localStorage.getItem("{KEY}"))'
+    b.click('[data-act=flip]')
+    b.wait("document.querySelector('.face-window img').naturalWidth")
+    b.shot(shots,'first-card')
+    first=b.js(state_expr)
+    b.send('Page.reload')
+    b.wait("document.querySelector('.face-window')")
+    assert first==b.js(state_expr)
+    for n in range(2,10):
+        b.click('[data-act=flip]')
+        assert b.js(state_expr)['drawn']==n
+    b.click('[data-act=enroll]')
+    assert len(b.js(state_expr)['roster'])==9
+    b.shot(shots,'calendar')
     b.click('#settings')
     b.click('[data-act=sound]')
     b.click('[data-act=close]')
     b.click('[data-act=tab][data-n="1"]')
     b.click('[data-act=focus]:not(:disabled)')
     b.click('[data-act=tab][data-n="0"]')
-    b.click('[data-act=practice][data-n="1"]')
+    cards=b.js(state_expr)['cards']
+    first_step=next(i for i,c in enumerate(cards) if c['steps']==1)
+    b.click(f'[data-act=practice][data-n="{first_step}"]')
     state_expr = f'JSON.parse(localStorage.getItem("{KEY}"))'
     before=b.js(state_expr)
     b.send('Page.reload')
@@ -118,27 +134,48 @@ def exercise(b, url, shots):
         elif s['year']>=2 and phase=='practice':
             break
         elif phase=='practice':
-            b.click('[data-act=practice]')
+            i=next(i for i,c in enumerate(s['cards']) if c['steps']==1)
+            b.click(f'[data-act=practice][data-n="{i}"]')
         elif phase in ['policy','skill']:
             b.click('[data-act=choose]')
         elif phase=='match':
             b.click('[data-act=exitMatch]' if s['match']['finished'] else '[data-act=play]')
         elif phase=='graduate':
             b.click('[data-act=graduate]')
-        elif phase=='recruit':
-            b.click('[data-act=recruit]' if s.get('revealed') else '[data-act=reveal]')
+        elif phase=='intake':
+            b.click('[data-act=flip]' if s['drawn']<len(s['pack']) else '[data-act=enroll]')
+        elif phase in ['shop','event','friendly','prize']:
+            b.click('[data-act=visit]:not(:disabled)')
         assert b.js('document.documentElement.scrollWidth<=innerWidth')
     else:
         raise AssertionError('Season did not complete')
-    assert {'practice','match','policy','skill','graduate','recruit'}<=phases
-    assert len(s['roster'])==9
+    assert {'practice','match','policy','skill','graduate','intake','shop','event','friendly'}<=phases
+    assert len(s['roster'])==12
     b.click('[data-act=tab][data-n="2"]')
     b.click('[data-act=upgrade]:not(:disabled)')
     assert sum(b.js(state_expr)['facility'])==1
     b.click('[data-act=tab][data-n="3"]')
     assert b.js('document.querySelectorAll(".journal li").length')>=10
+    # A returning player's real v1 fixture resumes where it left off and can try the
+    # new opening without losing that school.
+    legacy=json.loads((ROOT/'tests'/'legacy-save.json').read_text(encoding='utf8'))
+    b.js('localStorage.setItem('+json.dumps(KEY)+','+json.dumps(json.dumps(legacy))+')')
+    b.send('Page.reload')
+    b.wait('document.querySelector(".road")')
+    migrated=b.js(state_expr)
+    assert migrated['year']==legacy['year'] and migrated['phase']==legacy['phase']
+    assert migrated['roster'][0]['stats']==legacy['roster'][0]['stats']
+    b.click('#settings')
+    b.click('[data-act=switchSchool]')
+    assert b.js('document.querySelectorAll(".sealed").length')==9
+    b.click('[data-act=flip]')
+    b.send('Page.reload')
+    b.wait('document.querySelector(".face-window")')
+    b.click('#settings')
+    b.click('[data-act=switchSchool]')
+    assert b.js(state_expr)==migrated
     assert not b.errors, b.errors
-    print('PASS desktop, mobile, hit-testing, sound, focus, persisted reload, full season, recruitment, facilities, journal',flush=True)
+    print('PASS nine-card intake, mobile & desktop, calendar stops, summer tournament, promotion, shop, facilities, legacy migration and two save slots',flush=True)
 
 
 def main():
