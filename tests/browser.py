@@ -302,7 +302,7 @@ def exercise(b, url, shots):
     print('PASS widths 320/390/768/1440, fixed opening deck, summer/spring edits, 365-day season, illustrated rarity cards, qualitative growth, individual training, match experience and reloads, six facilities, deletion, camps, recruiting, shop, returning alumnus, promotion, migration and two save slots',flush=True)
 
 
-def main():
+def main(scenario=exercise, path='/baseball.html'):
     args=argparse.ArgumentParser()
     args.add_argument('--url')
     args.add_argument('--shots',type=Path)
@@ -326,7 +326,7 @@ def main():
             page=next(t for t in targets if t['type']=='page')
             ws=connect(page['webSocketDebuggerUrl'],open_timeout=10,max_size=8*1024*1024)
             try:
-                exercise(Browser(ws),options.url or f'http://127.0.0.1:{server.server_port}/',options.shots)
+                scenario(Browser(ws),options.url or f'http://127.0.0.1:{server.server_port}'+path,options.shots)
             finally:
                 ws.close()
         finally:

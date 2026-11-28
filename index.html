@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#183d34">
-  <meta name="description" content="青葉高校野球部を率いて夏の頂点へ。練習カードと試合采配で何世代も育てる高校野球ローグライト。">
-  <title>ダイヤモンドループ｜高校野球育成ローグライト</title>
-  <link rel="icon" href="./assets/ball.svg">
-  <link rel="stylesheet" href="./scorebook.css?v=5.1">
-  <script defer src="./cards.js?v=5"></script>
+  <meta name="theme-color" content="#173d37">
+  <meta name="description" content="修練札で冒険者を育て、三人の仲間と星塔へ。旅団の技を何世代にも継ぐ、無料の冒険者育成ローグライトRPG。">
+  <title>星灯りの旅団｜冒険者育成RPG</title>
+  <link rel="icon" href="./assets/guild/star.svg">
+  <link rel="stylesheet" href="./guild.css?v=1">
+  <script defer src="./cards.js?v=g1"></script>
   <script defer src="./calendar.js?v=5"></script>
-  <script defer src="./engine.js?v=5.1"></script>
-  <script defer src="./game.js?v=5.1"></script>
+  <script defer src="./guild-engine.js?v=1"></script>
+  <script defer src="./guild-ui.js?v=1"></script>
 </head>
 <body>
-  <header><div class="top wrap">
-    <button id="brand" class="brand" aria-label="育成ホーム"><img src="./assets/ball.svg" alt=""><span>Diamond Loop<small>ダイヤモンドループ</small></span></button>
+  <header><div class="bar wrap">
+    <button id="brand" aria-label="星灯りの旅団 ホーム"><img src="./assets/guild/star.svg" alt=""><span>星灯りの旅団<small>STARFALL GUILD</small></span></button>
     <nav id="nav" aria-label="メインメニュー"></nav>
-    <div class="top-tools"><span class="save" id="save">自動保存</span><button id="settings" class="icon-btn" aria-label="設定と遊び方"></button></div>
+    <span id="save" role="status">自動保存</span><button id="settings" aria-label="設定と遊び方"></button>
   </div></header>
   <main id="main" class="wrap"></main>
+  <dialog id="modal" aria-labelledby="dialog-title"><div id="modal-body"></div></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
-  <dialog id="modal" aria-labelledby="modal-title"><div id="modal-body"></div></dialog>
-  <noscript>遊ぶにはブラウザの JavaScript を有効にしてください。</noscript>
+  <noscript>遊ぶには JavaScript を有効にしてください。</noscript>
 </body>
 </html>
